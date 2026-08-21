@@ -1,0 +1,73 @@
+# ==========================
+# Node
+# ==========================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.pnpm-store/
+
+dist/
+.vite/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+
+# ==========================
+# Java
+# ==========================
+
+target/
+*.class
+
+*.jar
+!*.jar
+
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+.idea/
+*.iml
+
+
+# ==========================
+# IDE
+# ==========================
+
+.vscode/
+
+.idea/
+
+*.swp
+
+
+# ==========================
+# OS
+# ==========================
+
+.DS_Store
+Thumbs.db
+
+
+# ==========================
+# Logs
+# ==========================
+
+*.log
+
+
+# ==========================
+# FDP Runtime
+# ==========================
+
+workspace/
+
+deploy-temp/
+
+uploads/
