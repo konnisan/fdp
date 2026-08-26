@@ -10,4 +10,5 @@ export const deployProject = id => http.post(`/poc-projects/${id}/deploy`).then(
 export const restartProject = id => http.post(`/poc-projects/${id}/restart`).then(r => r.data)
 export const stopProject = id => http.post(`/poc-projects/${id}/stop`).then(r => r.data)
 export const listDeployments = projectId => http.get('/deployments', { params: projectId ? { projectId } : {} }).then(r => r.data)
+export const getDeploymentSteps = id => http.get(`/deployments/${id}/steps`).then(r => r.data)
 export const getDeploymentLogs = id => http.get(`/deployments/${id}/logs`).then(r => r.data)
