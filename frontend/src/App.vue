@@ -1,27 +1,45 @@
 <script setup>
-import {onMounted,reactive,ref} from 'vue'
-import {createProject,deleteProject,deployProject,getDeploymentLogs,listDeployments,listProjects,restartProject,stopProject,updateProject} from './api'
-const projects=ref([]),tasks=ref([]),logs=ref([]),selectedTask=ref(null),error=ref(''),editing=ref(null)
-const form=reactive({projectCode:'',projectName:'',gitUrl:'',gitBranch:'develop',projectType:'STATIC',buildCommand:'',startCommand:'',buildOutput:'dist',internalPort:null,previewPath:'/poc/',pm2Name:'',sqlitePath:'app.db'})
-function reset(){editing.value=null;Object.assign(form,{projectCode:'',projectName:'',gitUrl:'',gitBranch:'develop',projectType:'STATIC',buildCommand:'',startCommand:'',buildOutput:'dist',internalPort:null,previewPath:'/poc/',pm2Name:'',sqlitePath:'app.db'})}
-async function refresh(){try{error.value='';projects.value=await listProjects();tasks.value=await listDeployments()}catch(e){error.value=e.response?.data?.message||e.message}}
-async function save(){try{error.value='';const p={...form,internalPort:form.projectType==='NODE_SQLITE'?Number(form.internalPort):null};editing.value?await updateProject(editing.value,p):await createProject(p);reset();await refresh()}catch(e){error.value=e.response?.data?.message||e.message}}
-function edit(p){editing.value=p.id;Object.assign(form,{projectCode:p.projectCode,projectName:p.projectName,gitUrl:p.gitUrl,gitBranch:p.gitBranch,projectType:p.projectType,buildCommand:p.buildCommand||'',startCommand:p.startCommand||'',buildOutput:p.buildOutput||'dist',internalPort:p.internalPort,previewPath:p.previewPath,pm2Name:p.pm2Name||'',sqlitePath:p.sqlitePath||'app.db'});scrollTo({top:0,behavior:'smooth'})}
-async function act(fn,p){try{await fn(p.id);await refresh()}catch(e){error.value=e.response?.data?.message||e.message}}
-async function remove(p){if(confirm(`删除 ${p.projectName}？`))await act(deleteProject,p)}
-async function showLogs(t){selectedTask.value=t;logs.value=await getDeploymentLogs(t.id)}
-const short=c=>c&&c!=='DRY-RUN'?c.slice(0,8):(c||'-')
-onMounted(refresh)
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import AppLayout from './layout/Index.vue'
+import HomeView from './views/HomeView.vue'
+import ProjectsView from './views/ProjectsView.vue'
+import ProjectDetailView from './views/ProjectDetailView.vue'
+import DeploymentsView from './views/DeploymentsView.vue'
+import PreviewsView from './views/PreviewsView.vue'
+import RuntimeView from './views/RuntimeView.vue'
+
+const path = ref(window.location.pathname || '/')
+
+function syncPath() {
+  path.value = window.location.pathname || '/'
+}
+
+function navigate(to) {
+  if (window.location.pathname !== to) {
+    window.history.pushState({}, '', to)
+  }
+  path.value = to
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const route = computed(() => {
+  const p = path.value
+  if (/^\/poc-projects\/\d+$/.test(p)) {
+    return { component: ProjectDetailView, projectId: Number(p.split('/').pop()), title: 'POC 项目详情' }
+  }
+  if (p === '/poc-projects') return { component: ProjectsView, title: 'POC 项目' }
+  if (p === '/deployments') return { component: DeploymentsView, title: '部署中心' }
+  if (p === '/previews') return { component: PreviewsView, title: '预览入口' }
+  if (p === '/runtime') return { component: RuntimeView, title: '运行环境' }
+  return { component: HomeView, title: '平台首页' }
+})
+
+onMounted(() => window.addEventListener('popstate', syncPath))
+onUnmounted(() => window.removeEventListener('popstate', syncPath))
 </script>
 
 <template>
-<div class="shell">
-<header class="hero"><div><div class="eyebrow">FINANCIAL DELIVERY PLATFORM</div><h1>POC 部署与预览中心</h1><p>Codeup 是唯一源码来源。FDP 只负责同步、构建、运行和统一预览入口。</p></div><button class="ghost" @click="refresh">刷新</button></header>
-<div v-if="error" class="error">{{error}}</div>
-<section class="panel"><div class="head"><div><span>PROJECT</span><h2>{{editing?'编辑 POC':'新增 POC'}}</h2></div><button v-if="editing" class="ghost" @click="reset">取消</button></div>
-<div class="grid"><label>项目编码<input v-model="form.projectCode" placeholder="customer-a"></label><label>项目名称<input v-model="form.projectName" placeholder="客户 A POC"></label><label class="wide">Codeup Git<input v-model="form.gitUrl" placeholder="git@codeup.../poc.git"></label><label>分支<input v-model="form.gitBranch"></label><label>类型<select v-model="form.projectType"><option value="STATIC">静态 HTML / Vite</option><option value="NODE_SQLITE">Node.js + SQLite</option></select></label><label>预览 Path<input v-model="form.previewPath" placeholder="/poc/customer-a"></label><label>构建产物<input v-model="form.buildOutput" placeholder="dist 或 ."></label><label class="wide">构建命令<input v-model="form.buildCommand" placeholder="npm ci && npm run build；纯 HTML 留空"></label><template v-if="form.projectType==='NODE_SQLITE'"><label>内部端口<input v-model="form.internalPort" type="number" placeholder="3101"></label><label>PM2 名称<input v-model="form.pm2Name" placeholder="fdp-customer-a"></label><label class="wide">启动命令<input v-model="form.startCommand" placeholder="npm run start"></label><label>SQLite 文件<input v-model="form.sqlitePath" placeholder="app.db"></label></template></div><button class="primary" @click="save">保存 POC</button></section>
-<section class="panel"><div class="head"><div><span>PREVIEW</span><h2>POC 项目</h2></div><b>{{projects.length}} 个</b></div><div class="cards"><article v-for="p in projects" :key="p.id"><div class="card-top"><div><small>{{p.projectType}}</small><h3>{{p.projectName}}</h3><code>{{p.projectCode}}</code></div><i :class="p.status?.toLowerCase()">{{p.status}}</i></div><dl><div><dt>Branch</dt><dd>{{p.gitBranch}}</dd></div><div><dt>Commit</dt><dd>{{short(p.deployedCommit)}}</dd></div><div><dt>Preview</dt><dd><code>{{p.previewPath}}</code></dd></div><div v-if="p.internalPort"><dt>Internal</dt><dd>127.0.0.1:{{p.internalPort}}</dd></div></dl><div class="actions"><button class="primary" @click="act(deployProject,p)">拉取并部署</button><button v-if="p.projectType==='NODE_SQLITE'" class="ghost" @click="act(restartProject,p)">重启</button><button v-if="p.projectType==='NODE_SQLITE'" class="ghost" @click="act(stopProject,p)">停止</button><button class="ghost" @click="edit(p)">编辑</button><button class="danger" @click="remove(p)">删除</button></div></article></div></section>
-<section class="panel"><div class="head"><div><span>HISTORY</span><h2>部署记录</h2></div></div><table><thead><tr><th>ID</th><th>项目</th><th>状态</th><th>步骤</th><th>Commit</th><th>时间</th><th></th></tr></thead><tbody><tr v-for="t in tasks" :key="t.id"><td>#{{t.id}}</td><td>{{projects.find(p=>p.id===t.project_id)?.projectName||t.project_id}}</td><td>{{t.status}}</td><td>{{t.current_step}}</td><td><code>{{short(t.commit_id)}}</code></td><td>{{t.start_time||'-'}}</td><td><button class="link" @click="showLogs(t)">日志</button></td></tr></tbody></table></section>
-<div v-if="selectedTask" class="modal-bg" @click.self="selectedTask=null"><div class="modal"><div class="head"><h2>部署 #{{selectedTask.id}} 日志</h2><button class="ghost" @click="selectedTask=null">关闭</button></div><pre>{{logs.join('\n\n')}}</pre></div></div>
-</div>
+  <AppLayout :active-path="path" :page-title="route.title" @navigate="navigate">
+    <component :is="route.component" :project-id="route.projectId" @navigate="navigate" />
+  </AppLayout>
 </template>
