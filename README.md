@@ -1,24 +1,52 @@
 # Financial Delivery Platform (FDP)
 
-FDP 是面向 **POC 阶段** 的 Codeup 驱动部署与预览管理平台。
+FDP 是基于 Codeup 的内部交付与预览平台。研发迭代只发生在 Codeup；FDP 负责 Linux 服务器上的源码同步、构建、发布、容器运行、日志和统一访问路由。
 
-它不是正式生产 CI/CD 平台，也不负责在服务器上继续开发业务代码。
+## V1 已确认技术路线
 
-## 核心边界
+V1 **不使用 Kubernetes**，先在单台 Linux 服务器使用 Docker 把服务发布起来。
 
-- **Codeup 是唯一源码事实源**：团队成员在 Codeup 仓库中迭代 POC。
-- **FDP 只负责 Linux 服务器部署控制**：clone/pull、构建、运行、停止、重启、日志和预览路由。
-- 当前支持两种 POC：
-  - `STATIC`：FS 等系统产出的纯静态 HTML，或需要 Vite build 的静态页面。
-  - `NODE_SQLITE`：Node.js 前后端 + SQLite 的可交互 POC。
-- 服务器只需要一个对外端口，由 Nginx 根据 Path 将不同客户的 POC 分流。
-- 客户确认后进入独立的 Spring Boot / MySQL 正式开发阶段，不属于 FDP 职责。
+平台只定义两种交付方式：
 
-## 部署任务模型
+- `STATIC`：POC/纯 HTML/前端构建产物，共享服务器静态资源。
+- `CONTAINER`：代码交付项目，一个服务通过自己的 Dockerfile 构建为独立容器。Node.js、Java、Python、Go 等技术栈都由 Dockerfile 自己解决，FDP 不再为语言建立项目类型。
 
-FDP 借鉴 Jenkins 的 Job / Build 思路，但不引入 Jenkins 本身。
+```text
+Codeup
+   │
+   ├── STATIC
+   │     └── optional build -> /data/fdp/sites -> Nginx
+   │
+   └── CONTAINER
+         └── docker build -> image:<commit> -> docker run
+                                      │
+                                      └── 127.0.0.1:hostPort
+                                                   │
+                                                   ▼
+                                                Nginx :8090
+                                                   │
+                                           /poc/* or /app/*
+```
 
-一次部署对应一个 `deployment_task`，后台异步执行；每个 Task 下面记录独立的 `deployment_step`：
+## Codeup 是唯一源码事实源
+
+服务器上的 `/data/fdp/workspaces/<projectCode>` 只是部署工作副本，可以随时由 Codeup 重新拉取。
+
+支持 monorepo 子目录：
+
+```text
+Git URL:       git@codeup.../L2/IDP_AL.git
+Branch:        main
+Project Dir:   poc/poc/l2-data-aggregation/l2-server
+Dockerfile:    Dockerfile
+Build Context: .
+```
+
+FDP 会先同步仓库，再进入 `Project Dir` 执行对应发布流程。
+
+## Docker 容器模型
+
+每次 CONTAINER 发布：
 
 ```text
 QUEUED
@@ -27,10 +55,9 @@ PREPARE
   ↓
 GIT_SYNC
   ↓
-BUILD                 # 无构建命令时 SKIPPED
+DOCKER_BUILD
   ↓
-PUBLISH_STATIC
-或 START_NODE
+CONTAINER_REPLACE
   ↓
 ROUTE
   ↓
@@ -39,55 +66,107 @@ VERIFY
 SUCCESS / FAILED
 ```
 
-Step 状态统一为：`RUNNING / SUCCESS / FAILED / SKIPPED`。
+Image Tag 与 Codeup Commit 绑定，例如：
 
-同一个 POC 同一时间只允许一个部署任务运行，避免同时操作同一 Codeup 工作副本。
+```text
+Commit: a82fc7317d2e...
+Image:  fdp/l2-server:a82fc7317d2e
+```
 
-## 运行结构
+容器默认：
+
+- `--restart unless-stopped`
+- 仅绑定 `127.0.0.1:<hostPort>:<containerPort>`，不直接暴露给客户。
+- 支持 CPU / Memory limit。
+- 支持一个宿主机目录到容器目录的持久化 Volume。
+- 可选 HTTP health check。
+
+SQLite 等运行数据应通过 Volume 放在宿主机，例如：
+
+```text
+/data/fdp/data/l2-server  ->  /app/data
+```
+
+删除/替换容器不会删除宿主机数据。
+
+## STATIC 模型
+
+STATIC 用于 POC 静态预览：
 
 ```text
 Codeup
-  │
-  ├── STATIC POC
-  └── NODE_SQLITE POC
-          │
-          ▼
-         FDP
-   git clone / pull
-   build / PM2
-          │
-          ▼
-       Nginx :8090
-   ├── /poc/customer-a/
-   ├── /poc/customer-b/
-   └── /poc/fs-static/
-          │
-          ▼
-        客户预览
+  ↓
+Project Directory
+  ↓
+Build Command (optional)
+  ↓
+Build Output
+  ↓
+/data/fdp/sites
+  ↓
+Nginx Path
 ```
 
-## 当前为什么不强制 Docker
+所有静态 POC 共享服务器资源，不需要一个 POC 一个容器。
 
-当前 POC 技术栈固定为 `STATIC` 和 `Node.js + SQLite`，Linux + PM2 + Nginx 已经能提供进程隔离、内部端口和统一预览入口。
+## Jenkins 借鉴
 
-因此 **每一个 POC 当前不需要单独配置 Docker 容器**。Docker 以后可以作为新的运行方式加入，例如 `NODE_SQLITE_DOCKER`，但不应该成为当前项目的必选配置。
+FDP 不引入 Jenkins，但借鉴它的 Job/Build 模型：
 
-Kubernetes（K8S）属于容器编排层，主要解决多服务器、大量容器的调度、故障恢复、扩缩容和服务发现。当前 FDP 只有一台 Linux 服务器和少量 POC，不需要引入 K8S。
+- 一次发布 = 一个 `deployment_task`
+- 每个 Task 有独立 `deployment_step`
+- 状态：`QUEUED / RUNNING / SUCCESS / FAILED / SKIPPED`
+- Git Commit、Docker Image Tag、步骤和日志都可追踪
+- 同一个项目同一时间只允许一个部署任务运行
 
-## 服务器目录
+## Linux 服务器依赖
 
-服务器工作目录只是 Codeup 的部署副本，不保存研发迭代状态。
+V1 需要：
 
 ```text
-/data/fdp/
-├── workspaces/   # Codeup 工作副本，可随时重新拉取
-├── sites/        # STATIC 发布产物
-└── data/         # NODE_SQLITE SQLite 运行数据，与 Git 工作区分离
+Git
+Docker Engine
+Nginx
+rsync
+curl
+Java 17 (FDP backend)
+MySQL (FDP metadata only)
 ```
+
+Node/Java/Python 等业务运行时不要求安装在宿主机，它们应进入各自 Docker Image。STATIC 如果需要前端构建，则宿主机仍需安装该项目对应的构建工具，后续也可把静态构建容器化。
+
+推荐环境变量：
+
+```bash
+export FDP_EXECUTION_ENABLED=true
+export FDP_WORKSPACE_ROOT=/data/fdp/workspaces
+export FDP_STATIC_ROOT=/data/fdp/sites
+export FDP_DATA_ROOT=/data/fdp/data
+export FDP_NGINX_CONFIG_FILE=/etc/nginx/conf.d/fdp.conf
+export FDP_PUBLIC_PORT=8090
+```
+
+Codeup 凭据使用服务器 SSH Key / Git credential helper，不写入 FDP 数据库。
+
+## 数据库
+
+全新环境：
+
+```bash
+mysql -uroot -p < sql/fdp.sql
+```
+
+已经运行 V3 的环境：
+
+```bash
+mysql -uroot -p fdp < sql/migration_v4_docker_delivery.sql
+```
+
+V4 迁移会保留旧 PM2/SQLite 列用于兼容历史，但新代码不再依赖它们。
 
 ## 本地开发
 
-默认 `FDP_EXECUTION_ENABLED=false`，部署命令只做 DRY-RUN，方便 Windows 上调试 FDP UI/API。
+默认 `FDP_EXECUTION_ENABLED=false`，所有 shell / Docker 命令只记录为 DRY-RUN：
 
 ```bash
 cd backend
@@ -100,47 +179,13 @@ npm install
 npm run dev
 ```
 
-前端：`http://localhost:5173`
-
-后端：`http://localhost:8080`
-
-## Linux 服务器
-
-安装：Git、Node.js/npm、PM2、Nginx、rsync、MySQL（MySQL 仅保存 FDP 自身元数据）。
-
-推荐环境变量：
-
-```bash
-export FDP_EXECUTION_ENABLED=true
-export FDP_WORKSPACE_ROOT=/data/fdp/workspaces
-export FDP_STATIC_ROOT=/data/fdp/sites
-export FDP_DATA_ROOT=/data/fdp/data
-export FDP_NGINX_CONFIG_FILE=/etc/nginx/conf.d/fdp-poc.conf
-export FDP_PUBLIC_PORT=8090
-```
-
-Codeup 凭据不要写入数据库，使用服务器 SSH Key 或 Git credential helper。
-
-## 数据库
-
-新环境：
-
-```bash
-mysql -uroot -p < sql/fdp.sql
-```
-
-已经升级到 POC V2 的环境继续执行：
-
-```bash
-mysql -uroot -p < sql/migration_v3_deployment_pipeline.sql
-```
-
-## 当前明确不做
+## 当前不做
 
 - Kubernetes / Helm
-- 强制 Docker 化
-- 正式 Spring Boot 项目发布
-- 在线代码编辑
-- Git commit / push / merge
-- 企业 RBAC / 权限审计
-- Jenkins 式通用 Pipeline 编排
+- 多服务器调度
+- Docker Registry 管理
+- Java / Node / Python 专用部署器
+- 在线代码编辑、commit、push、merge
+- Jenkins 式通用 Pipeline 设计器
+
+K8S 预留为未来横向扩展阶段：当单机服务容量不足、需要多服务器调度和故障恢复时，再在现有 Docker Image 之上增加 Kubernetes 编排层。

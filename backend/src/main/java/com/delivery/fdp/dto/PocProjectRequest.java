@@ -1,19 +1,31 @@
 package com.delivery.fdp.dto;
 
 public class PocProjectRequest {
-    private String projectCode, projectName, gitUrl, gitBranch="develop", projectType;
-    private String buildCommand, startCommand, buildOutput="dist", previewPath, pm2Name, sqlitePath="app.db";
-    private Integer internalPort;
+    private String projectCode, projectName, gitUrl, gitBranch = "develop", projectType;
+    private String projectDirectory = ".", buildCommand, buildOutput = "dist";
+    private String dockerfilePath = "Dockerfile", dockerBuildContext = ".", imageName, containerName;
+    private Integer hostPort, containerPort = 3000;
+    private String cpuLimit = "1", memoryLimit = "512m";
+    private String hostDataPath, containerDataPath, healthCheckPath, previewPath;
+
     public String getProjectCode(){return projectCode;} public void setProjectCode(String v){projectCode=v;}
     public String getProjectName(){return projectName;} public void setProjectName(String v){projectName=v;}
     public String getGitUrl(){return gitUrl;} public void setGitUrl(String v){gitUrl=v;}
     public String getGitBranch(){return gitBranch;} public void setGitBranch(String v){gitBranch=v;}
     public String getProjectType(){return projectType;} public void setProjectType(String v){projectType=v;}
+    public String getProjectDirectory(){return projectDirectory;} public void setProjectDirectory(String v){projectDirectory=v;}
     public String getBuildCommand(){return buildCommand;} public void setBuildCommand(String v){buildCommand=v;}
-    public String getStartCommand(){return startCommand;} public void setStartCommand(String v){startCommand=v;}
     public String getBuildOutput(){return buildOutput;} public void setBuildOutput(String v){buildOutput=v;}
-    public Integer getInternalPort(){return internalPort;} public void setInternalPort(Integer v){internalPort=v;}
+    public String getDockerfilePath(){return dockerfilePath;} public void setDockerfilePath(String v){dockerfilePath=v;}
+    public String getDockerBuildContext(){return dockerBuildContext;} public void setDockerBuildContext(String v){dockerBuildContext=v;}
+    public String getImageName(){return imageName;} public void setImageName(String v){imageName=v;}
+    public String getContainerName(){return containerName;} public void setContainerName(String v){containerName=v;}
+    public Integer getHostPort(){return hostPort;} public void setHostPort(Integer v){hostPort=v;}
+    public Integer getContainerPort(){return containerPort;} public void setContainerPort(Integer v){containerPort=v;}
+    public String getCpuLimit(){return cpuLimit;} public void setCpuLimit(String v){cpuLimit=v;}
+    public String getMemoryLimit(){return memoryLimit;} public void setMemoryLimit(String v){memoryLimit=v;}
+    public String getHostDataPath(){return hostDataPath;} public void setHostDataPath(String v){hostDataPath=v;}
+    public String getContainerDataPath(){return containerDataPath;} public void setContainerDataPath(String v){containerDataPath=v;}
+    public String getHealthCheckPath(){return healthCheckPath;} public void setHealthCheckPath(String v){healthCheckPath=v;}
     public String getPreviewPath(){return previewPath;} public void setPreviewPath(String v){previewPath=v;}
-    public String getPm2Name(){return pm2Name;} public void setPm2Name(String v){pm2Name=v;}
-    public String getSqlitePath(){return sqlitePath;} public void setSqlitePath(String v){sqlitePath=v;}
 }

@@ -12,7 +12,6 @@ import org.springframework.util.StringUtils;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,9 +40,7 @@ public class DeploymentService {
 
     public long deploy(Long projectId) {
         project(projectId);
-        if (!activeProjects.add(projectId)) {
-            throw new IllegalStateException("This POC already has a deployment task running.");
-        }
+        if (!activeProjects.add(projectId)) throw new IllegalStateException("This project already has a deployment task running.");
         long taskId = deployments.createTask(projectId);
         try {
             deploymentTaskExecutor.execute(() -> executeDeployment(taskId, projectId));
@@ -51,7 +48,7 @@ public class DeploymentService {
         } catch (RuntimeException e) {
             activeProjects.remove(projectId);
             deployments.finish(taskId, "FAILED");
-            deployments.log(taskId, "Deployment task could not be queued: " + e.getMessage());
+            deployments.log(taskId, "Deployment task could not be queued: " + message(e));
             throw e;
         }
     }
@@ -69,38 +66,25 @@ public class DeploymentService {
 
             String commit = stage(taskId, "GIT_SYNC", "同步 Codeup 源码", 20, () -> {
                 String gitCommand = Files.exists(workspace.resolve(".git"))
-                        ? "git fetch --prune origin && git checkout " + q(project.getGitBranch())
-                          + " && git reset --hard origin/" + q(project.getGitBranch())
-                        : "git clone --branch " + q(project.getGitBranch())
-                          + " --single-branch " + q(project.getGitUrl()) + " .";
-                run(taskId, gitCommand, workspace, Map.of());
-                String sha = props.isExecutionEnabled()
-                        ? run(taskId, "git rev-parse HEAD", workspace, Map.of()).trim()
-                        : "DRY-RUN";
+                        ? "git fetch --prune origin && git checkout " + q(project.getGitBranch()) + " && git reset --hard origin/" + q(project.getGitBranch())
+                        : "git clone --branch " + q(project.getGitBranch()) + " --single-branch " + q(project.getGitUrl()) + " .";
+                run(taskId, gitCommand, workspace);
+                String sha = props.isExecutionEnabled() ? run(taskId, "git rev-parse HEAD", workspace).trim() : "DRY-RUN";
                 deployments.commit(taskId, sha);
                 return sha;
             });
 
-            if (StringUtils.hasText(project.getBuildCommand())) {
-                stage(taskId, "BUILD", "执行构建", 30, () -> {
-                    run(taskId, project.getBuildCommand(), workspace, Map.of());
-                    return null;
-                });
-            } else {
-                deployments.skipStep(taskId, "BUILD", "执行构建", 30);
-                deployments.log(taskId, "[BUILD] SKIPPED - no build command configured");
+            Path projectRoot = projectRoot(project, workspace);
+            if (props.isExecutionEnabled() && !Files.isDirectory(projectRoot)) {
+                throw new IllegalStateException("Project directory does not exist: " + project.getProjectDirectory());
             }
 
             if ("STATIC".equals(project.getProjectType())) {
-                stage(taskId, "PUBLISH_STATIC", "发布静态资源", 40, () -> {
-                    publishStatic(taskId, project, workspace);
-                    return null;
-                });
+                deployStatic(taskId, project, projectRoot);
+            } else if ("CONTAINER".equals(project.getProjectType())) {
+                deployContainer(taskId, project, projectRoot, commit);
             } else {
-                stage(taskId, "START_NODE", "启动 Node.js", 40, () -> {
-                    startNode(taskId, project, workspace);
-                    return null;
-                });
+                throw new IllegalStateException("Unsupported project type: " + project.getProjectType());
             }
 
             stage(taskId, "ROUTE", "更新 Nginx 路由", 50, () -> {
@@ -109,13 +93,11 @@ public class DeploymentService {
             });
 
             stage(taskId, "VERIFY", "运行校验", 60, () -> {
-                verifyRuntime(taskId, project);
+                verifyRuntime(taskId, project, projectRoot);
                 return null;
             });
 
-            projects.updateDeployment(projectId,
-                    "STATIC".equals(project.getProjectType()) ? "PUBLISHED" : "RUNNING",
-                    commit);
+            projects.updateDeployment(projectId, "STATIC".equals(project.getProjectType()) ? "PUBLISHED" : "RUNNING", commit);
             deployments.finish(taskId, "SUCCESS");
         } catch (Exception e) {
             deployments.finish(taskId, "FAILED");
@@ -125,84 +107,104 @@ public class DeploymentService {
         }
     }
 
+    private void deployStatic(long taskId, PocProject project, Path projectRoot) throws Exception {
+        if (StringUtils.hasText(project.getBuildCommand())) {
+            stage(taskId, "STATIC_BUILD", "构建静态资源", 30, () -> {
+                run(taskId, project.getBuildCommand(), projectRoot);
+                return null;
+            });
+        } else {
+            deployments.skipStep(taskId, "STATIC_BUILD", "构建静态资源", 30);
+            deployments.log(taskId, "[STATIC_BUILD] SKIPPED - no build command configured");
+        }
+        stage(taskId, "STATIC_PUBLISH", "发布静态资源", 40, () -> {
+            publishStatic(taskId, project, projectRoot);
+            return null;
+        });
+    }
+
+    private void deployContainer(long taskId, PocProject project, Path projectRoot, String commit) throws Exception {
+        String tag = imageTag(project, commit);
+        stage(taskId, "DOCKER_BUILD", "构建 Docker 镜像", 30, () -> {
+            Path dockerfile = resolveRelative(projectRoot, project.getDockerfilePath(), "dockerfilePath");
+            Path context = resolveRelative(projectRoot, project.getDockerBuildContext(), "dockerBuildContext");
+            if (props.isExecutionEnabled() && !Files.isRegularFile(dockerfile)) throw new IllegalStateException("Dockerfile does not exist: " + dockerfile);
+            if (props.isExecutionEnabled() && !Files.isDirectory(context)) throw new IllegalStateException("Docker build context does not exist: " + context);
+            run(taskId, "docker build -t " + q(tag) + " -f " + q(dockerfile) + " " + q(context), projectRoot);
+            deployments.image(taskId, tag);
+            return null;
+        });
+
+        stage(taskId, "CONTAINER_REPLACE", "替换 Docker 容器", 40, () -> {
+            if (StringUtils.hasText(project.getHostDataPath()) && props.isExecutionEnabled()) {
+                Files.createDirectories(Path.of(project.getHostDataPath()));
+            }
+            run(taskId, "docker rm -f " + q(project.getContainerName()) + " >/dev/null 2>&1 || true", projectRoot);
+            StringBuilder command = new StringBuilder("docker run -d --name ").append(q(project.getContainerName()))
+                    .append(" --restart unless-stopped")
+                    .append(" --cpus ").append(q(project.getCpuLimit()))
+                    .append(" --memory ").append(q(project.getMemoryLimit()))
+                    .append(" -p ").append(q("127.0.0.1:" + project.getHostPort() + ":" + project.getContainerPort()));
+            if (StringUtils.hasText(project.getHostDataPath())) {
+                command.append(" -v ").append(q(project.getHostDataPath() + ":" + project.getContainerDataPath()));
+            }
+            command.append(" ").append(q(tag));
+            run(taskId, command.toString(), projectRoot);
+            return null;
+        });
+    }
+
     public void restart(Long id) {
-        PocProject project = node(id);
-        check(runRaw("pm2 restart " + q(project.getPm2Name()), workspace(project)));
+        PocProject project = container(id);
+        check(exec.execute("docker restart " + q(project.getContainerName()), projectRoot(project, workspace(project))));
         projects.updateStatus(id, "RUNNING");
         regenerateNginx(null, null);
     }
 
     public void stop(Long id) {
-        PocProject project = node(id);
-        check(runRaw("pm2 stop " + q(project.getPm2Name()), workspace(project)));
+        PocProject project = container(id);
+        check(exec.execute("docker stop " + q(project.getContainerName()), projectRoot(project, workspace(project))));
         projects.updateStatus(id, "STOPPED");
         regenerateNginx(null, null);
     }
 
-    private void publishStatic(long taskId, PocProject project, Path workspace) throws Exception {
-        Path source = workspace.resolve(project.getBuildOutput()).normalize();
-        if (!source.startsWith(workspace)) throw new IllegalArgumentException("Invalid buildOutput");
+    private void publishStatic(long taskId, PocProject project, Path projectRoot) throws Exception {
+        Path source = resolveRelative(projectRoot, project.getBuildOutput(), "buildOutput");
+        if (props.isExecutionEnabled() && !Files.isDirectory(source)) throw new IllegalStateException("Static build output does not exist: " + source);
         Path root = Path.of(props.getStaticRoot()).toAbsolutePath().normalize();
         Path destination = root.resolve(project.getPreviewPath().replaceFirst("^/", "")).normalize();
         if (!destination.startsWith(root)) throw new IllegalArgumentException("Invalid previewPath");
         Files.createDirectories(destination);
-        run(taskId,
-                "rsync -a --delete --exclude=.git --exclude=node_modules " + q(source + "/") + " " + q(destination + "/"),
-                workspace,
-                Map.of());
+        run(taskId, "rsync -a --delete --exclude=.git --exclude=node_modules " + q(source + "/") + " " + q(destination + "/"), projectRoot);
     }
 
-    private void startNode(long taskId, PocProject project, Path workspace) throws Exception {
-        Path root = Path.of(props.getDataRoot()).toAbsolutePath().normalize();
-        Path dataDir = root.resolve(project.getProjectCode()).normalize();
-        if (!dataDir.startsWith(root)) throw new IllegalArgumentException("Invalid data path");
-        Files.createDirectories(dataDir);
-        Path database = dataDir.resolve(project.getSqlitePath()).normalize();
-        if (!database.startsWith(dataDir)) throw new IllegalArgumentException("Invalid sqlitePath");
-
-        Map<String, String> env = new HashMap<>();
-        env.put("PORT", String.valueOf(project.getInternalPort()));
-        env.put("SQLITE_PATH", database.toString());
-
-        run(taskId,
-                "pm2 delete " + q(project.getPm2Name()) + " >/dev/null 2>&1 || true; "
-                        + "pm2 start bash --name " + q(project.getPm2Name()) + " -- -lc " + q(project.getStartCommand()),
-                workspace,
-                env);
-        run(taskId, "pm2 save", workspace, env);
-    }
-
-    private void verifyRuntime(long taskId, PocProject project) throws Exception {
+    private void verifyRuntime(long taskId, PocProject project, Path projectRoot) throws Exception {
         if (!props.isExecutionEnabled()) {
             deployments.log(taskId, "[VERIFY] DRY-RUN - runtime verification skipped");
             return;
         }
-        if ("NODE_SQLITE".equals(project.getProjectType())) {
-            run(taskId, "pm2 describe " + q(project.getPm2Name()), workspace(project), Map.of());
+        if ("CONTAINER".equals(project.getProjectType())) {
+            String running = run(taskId, "docker inspect -f '{{.State.Running}}' " + q(project.getContainerName()), projectRoot).trim();
+            if (!"true".equalsIgnoreCase(running)) throw new IllegalStateException("Container is not running: " + project.getContainerName());
+            if (StringUtils.hasText(project.getHealthCheckPath())) {
+                String url = "http://127.0.0.1:" + project.getHostPort() + project.getHealthCheckPath();
+                run(taskId, "curl -fsS --max-time 10 " + q(url), projectRoot);
+            }
             return;
         }
         Path root = Path.of(props.getStaticRoot()).toAbsolutePath().normalize();
         Path destination = root.resolve(project.getPreviewPath().replaceFirst("^/", "")).normalize();
-        if (!Files.isDirectory(destination)) {
-            throw new IllegalStateException("Static publish directory does not exist: " + destination);
-        }
+        if (!Files.isDirectory(destination)) throw new IllegalStateException("Static publish directory does not exist: " + destination);
         try (var files = Files.list(destination)) {
-            if (files.findAny().isEmpty()) {
-                throw new IllegalStateException("Static publish directory is empty: " + destination);
-            }
+            if (files.findAny().isEmpty()) throw new IllegalStateException("Static publish directory is empty: " + destination);
         }
     }
 
     private synchronized void regenerateNginx(Long taskId, PocProject currentProject) {
         try {
             List<PocProject> routes = new ArrayList<>(projects.findPublished());
-            if (currentProject != null && routes.stream().noneMatch(p -> p.getId().equals(currentProject.getId()))) {
-                routes.add(currentProject);
-            }
-
-            StringBuilder config = new StringBuilder(
-                    "# Generated by FDP. Do not edit manually.\nserver {\n    listen "
-                            + props.getNginxPublicPort() + ";\n    server_name _;\n\n");
+            if (currentProject != null && routes.stream().noneMatch(p -> p.getId().equals(currentProject.getId()))) routes.add(currentProject);
+            StringBuilder config = new StringBuilder("# Generated by FDP. Do not edit manually.\nserver {\n    listen " + props.getNginxPublicPort() + ";\n    server_name _;\n\n");
             Path staticRoot = Path.of(props.getStaticRoot()).toAbsolutePath().normalize();
             for (PocProject project : routes) {
                 if ("STATIC".equals(project.getProjectType())) {
@@ -210,9 +212,9 @@ public class DeploymentService {
                             .append("        root ").append(staticRoot.toString().replace("\\", "/")).append(";\n")
                             .append("        try_files $uri $uri/ ").append(project.getPreviewPath()).append("/index.html;\n")
                             .append("    }\n\n");
-                } else {
+                } else if ("CONTAINER".equals(project.getProjectType())) {
                     config.append("    location ^~ ").append(project.getPreviewPath()).append("/ {\n")
-                            .append("        proxy_pass http://127.0.0.1:").append(project.getInternalPort()).append("/;\n")
+                            .append("        proxy_pass http://127.0.0.1:").append(project.getHostPort()).append("/;\n")
                             .append("        proxy_http_version 1.1;\n")
                             .append("        proxy_set_header Host $host;\n")
                             .append("        proxy_set_header X-Real-IP $remote_addr;\n")
@@ -221,7 +223,6 @@ public class DeploymentService {
                 }
             }
             config.append("}\n");
-
             Path file = Path.of(props.getNginxConfigFile()).toAbsolutePath().normalize();
             if (file.getParent() != null) Files.createDirectories(file.getParent());
             Files.writeString(file, config.toString());
@@ -233,11 +234,7 @@ public class DeploymentService {
         }
     }
 
-    private <T> T stage(long taskId,
-                        String code,
-                        String name,
-                        int sortOrder,
-                        StageAction<T> action) throws Exception {
+    private <T> T stage(long taskId,String code,String name,int sortOrder,StageAction<T> action) throws Exception {
         deployments.step(taskId, code);
         long stepId = deployments.startStep(taskId, code, name, sortOrder);
         deployments.log(taskId, "[" + code + "] " + name + " - RUNNING");
@@ -260,50 +257,28 @@ public class DeploymentService {
         return workspace;
     }
 
-    private PocProject project(Long id) {
-        return projects.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("POC project not found: " + id));
+    private Path projectRoot(PocProject project, Path workspace) {
+        return resolveRelative(workspace, project.getProjectDirectory(), "projectDirectory");
     }
 
-    private PocProject node(Long id) {
-        PocProject project = project(id);
-        if (!"NODE_SQLITE".equals(project.getProjectType())) {
-            throw new IllegalArgumentException("Only NODE_SQLITE has a process");
-        }
-        return project;
+    private Path resolveRelative(Path root, String relative, String field) {
+        Path path = root.resolve(relative).normalize();
+        if (!path.startsWith(root)) throw new IllegalArgumentException(field + " escapes its allowed directory");
+        return path;
     }
 
-    private String run(long taskId, String command, Path cwd, Map<String, String> env) {
-        CommandExecutor.Result result = exec.execute(command, cwd, env);
-        deployments.log(taskId, "$ " + command + "\n" + result.output());
-        check(result);
-        return result.output();
+    private String imageTag(PocProject project, String commit) {
+        String version = "DRY-RUN".equals(commit) ? "dry-run" : commit.substring(0, Math.min(12, commit.length()));
+        return project.getImageName() + ":" + version;
     }
 
-    private CommandExecutor.Result runRaw(String command, Path cwd) {
-        return exec.execute(command, cwd);
-    }
-
-    private void check(CommandExecutor.Result result) {
-        if (!result.success()) {
-            throw new IllegalStateException("Command failed (" + result.exitCode() + "): " + result.output());
-        }
-    }
-
-    private String q(Object value) {
-        String text = String.valueOf(value);
-        if (!text.matches("^[A-Za-z0-9_./:@\\\\ -]+$")) {
-            throw new IllegalArgumentException("Unsafe command argument");
-        }
-        return "'" + text.replace("'", "'\\''") + "'";
-    }
-
-    private String message(Throwable error) {
-        return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
-    }
+    private PocProject project(Long id) {return projects.findById(id).orElseThrow(() -> new IllegalArgumentException("Delivery project not found: " + id));}
+    private PocProject container(Long id) {PocProject p=project(id);if(!"CONTAINER".equals(p.getProjectType()))throw new IllegalArgumentException("Only CONTAINER projects have a runtime process");return p;}
+    private String run(long taskId,String command,Path cwd){CommandExecutor.Result result=exec.execute(command,cwd,Map.of());deployments.log(taskId,"$ "+command+"\n"+result.output());check(result);return result.output();}
+    private void check(CommandExecutor.Result result){if(!result.success())throw new IllegalStateException("Command failed ("+result.exitCode()+"): "+result.output());}
+    private String q(Object value){String text=String.valueOf(value);if(!text.matches("^[A-Za-z0-9_./:@\\\\ -]+$"))throw new IllegalArgumentException("Unsafe command argument: "+text);return "'"+text.replace("'","'\\''")+"'";}
+    private String message(Throwable error){return error.getMessage()==null?error.getClass().getSimpleName():error.getMessage();}
 
     @FunctionalInterface
-    private interface StageAction<T> {
-        T run() throws Exception;
-    }
+    private interface StageAction<T>{T run() throws Exception;}
 }

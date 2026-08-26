@@ -16,6 +16,6 @@ fdp:
     workspace-root: ${FDP_WORKSPACE_ROOT:./runtime/workspaces}
     static-root: ${FDP_STATIC_ROOT:./runtime/sites}
     data-root: ${FDP_DATA_ROOT:./runtime/data}
-    nginx-config-file: ${FDP_NGINX_CONFIG_FILE:./runtime/nginx/fdp-poc.conf}
+    nginx-config-file: ${FDP_NGINX_CONFIG_FILE:./runtime/nginx/fdp.conf}
     nginx-public-port: ${FDP_PUBLIC_PORT:8090}
     nginx-reload-command: ${FDP_NGINX_RELOAD_COMMAND:nginx -t && nginx -s reload}

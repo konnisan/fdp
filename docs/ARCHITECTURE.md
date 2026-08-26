@@ -1,37 +1,160 @@
-# FDP POC Delivery Architecture
+# FDP V4 Docker Delivery Architecture
 
-## 产品定义
+## 1. Product boundary
 
-FDP 是客户 POC 的服务器部署控制器。研发只发生在 Codeup；FDP 从不成为源码事实源。
+Codeup is the source of truth. FDP never becomes a source-code editing platform.
 
-## 唯一外部端口
+V1 runs on one Linux server and supports two delivery strategies:
+
+```text
+STATIC     -> shared files -> Nginx
+CONTAINER  -> Docker image -> Docker container -> Nginx
+```
+
+Kubernetes is deliberately excluded from V1.
+
+## 2. Why CONTAINER instead of NODE_SQLITE / JAVA / PYTHON
+
+FDP should model deployment, not programming languages.
+
+```text
+Node.js  ─┐
+Java     ─┤
+Python   ─┼─ Dockerfile -> image -> CONTAINER
+Go       ─┤
+Others   ─┘
+```
+
+This keeps the FDP backend unchanged when a new application technology appears.
+
+## 3. Git and monorepo layout
+
+A delivery project contains:
+
+```text
+git_url
+git_branch
+project_directory
+```
+
+`project_directory` allows a service to live below the repository root, for example:
+
+```text
+repo: L2/IDP_AL
+project_directory: poc/poc/l2-data-aggregation/l2-server
+```
+
+The Linux workspace remains disposable:
+
+```text
+/data/fdp/workspaces/<projectCode>
+```
+
+## 4. Container build and versioning
+
+CONTAINER projects additionally define:
+
+```text
+dockerfile_path
+docker_build_context
+image_name
+container_name
+host_port
+container_port
+cpu_limit
+memory_limit
+host_data_path
+container_data_path
+health_check_path
+```
+
+Every successful Git sync produces a commit SHA. Docker images are tagged by that commit:
+
+```text
+fdp/l2-server:a82fc7317d2e
+```
+
+This gives deployment history a stable source-version/image-version relationship and creates a foundation for rollback later.
+
+## 5. Network boundary
+
+Containers never publish directly on the server's external interface:
+
+```text
+docker -p 127.0.0.1:3101:3000
+```
+
+Nginx is the only external entry point:
 
 ```text
 Nginx :8090
-  ├── /poc/a/ -> STATIC 文件
-  ├── /poc/b/ -> 127.0.0.1:3101
-  └── /poc/c/ -> 127.0.0.1:3102
+  ├── /poc/static-a/ -> shared static files
+  ├── /app/l2/       -> 127.0.0.1:3101
+  └── /app/service/  -> 127.0.0.1:3102
 ```
 
-Node.js 端口仅在服务器内部监听，客户只访问 Nginx 的统一端口和 Path。
+## 6. Persistence
 
-## 两种项目类型
+Containers are replaceable. Mutable data must live outside the container when persistence is required.
 
-### STATIC
+```text
+Host:      /data/fdp/data/l2-server
+Container: /app/data
+```
 
-用于 FS 产出的纯 HTML 或前端构建产物。FDP 同步 Codeup 后把静态资源发布到统一 sites 目录，再由 Nginx 暴露 Path。
+The first V1 model supports one bind mount per project. It can later evolve to a dedicated volume table.
 
-### NODE_SQLITE
+## 7. Deployment task pipeline
 
-用于其他成员在 Codeup 持续迭代的快速交互 POC。FDP 同步源码、执行 Node 构建、用 PM2 管理进程，并通过 Nginx 反向代理。
+FDP keeps the Jenkins-inspired Task/Step/Log model.
 
-## SQLite
+STATIC:
 
-SQLite 属于 POC 运行数据，不属于 FDP 元数据。运行文件放在 `data/<projectCode>/`，与 Git 工作区分离，避免重新部署覆盖客户演示数据。
+```text
+PREPARE -> GIT_SYNC -> STATIC_BUILD -> STATIC_PUBLISH -> ROUTE -> VERIFY
+```
 
-## 安全边界
+CONTAINER:
 
-- Codeup Token/SSH Key 不落库。
-- 不提供通用“执行任意 shell”HTTP API。
-- projectCode、previewPath、internalPort 做唯一性约束。
-- 工作目录只能位于 FDP 配置根目录下面。
+```text
+PREPARE -> GIT_SYNC -> DOCKER_BUILD -> CONTAINER_REPLACE -> ROUTE -> VERIFY
+```
+
+`STATIC_BUILD` can be `SKIPPED`.
+
+A CONTAINER task stores both `commit_id` and `image_tag`.
+
+## 8. Resource control
+
+Single-host Docker cannot scale horizontally across servers, but V1 still prevents one service from consuming the entire machine:
+
+```text
+--cpus <limit>
+--memory <limit>
+```
+
+Kubernetes is a later orchestration strategy when one host is no longer enough.
+
+## 9. Future K8S boundary
+
+The upper-level FDP concepts should remain stable:
+
+```text
+Project
+Git
+Task
+Step
+Log
+Commit
+Image
+Preview Path
+```
+
+Future K8S work should replace only the runtime strategy:
+
+```text
+Docker single host  -> current V1
+Kubernetes          -> future multi-host orchestration
+```
+
+Do not introduce Pod/Deployment/Service/Ingress/Helm into V1.
