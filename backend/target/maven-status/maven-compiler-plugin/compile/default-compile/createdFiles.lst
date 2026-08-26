@@ -1,7 +1,0 @@
-com\delivery\fdp\config\CorsConfig.class
-com\delivery\fdp\controller\DeployController.class
-com\delivery\fdp\service\GitService.class
-com\delivery\fdp\service\CommandExecutor.class
-com\delivery\fdp\service\DeployService.class
-com\delivery\fdp\FdpApplication.class
-com\delivery\fdp\service\BuildService.class

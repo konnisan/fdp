@@ -1,1 +1,8 @@
-{"name":"fdp-web","scripts":{"dev":"vite"},"dependencies":{"axios":"latest","vue":"latest"},"devDependencies":{"@vitejs/plugin-vue":"^6.0.8","vite":"latest"}}
+{
+  "name": "fdp-web",
+  "private": true,
+  "version": "2.0.0",
+  "scripts": {"dev": "vite", "build": "vite build"},
+  "dependencies": {"axios": "^1.11.0", "vue": "^3.5.18"},
+  "devDependencies": {"@vitejs/plugin-vue": "^6.0.1", "vite": "^7.1.3"}
+}

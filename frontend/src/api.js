@@ -1,0 +1,11 @@
+import axios from 'axios'
+const http=axios.create({baseURL:'/api'})
+export const listProjects=()=>http.get('/poc-projects').then(r=>r.data)
+export const createProject=d=>http.post('/poc-projects',d).then(r=>r.data)
+export const updateProject=(id,d)=>http.put(`/poc-projects/${id}`,d).then(r=>r.data)
+export const deleteProject=id=>http.delete(`/poc-projects/${id}`)
+export const deployProject=id=>http.post(`/poc-projects/${id}/deploy`).then(r=>r.data)
+export const restartProject=id=>http.post(`/poc-projects/${id}/restart`).then(r=>r.data)
+export const stopProject=id=>http.post(`/poc-projects/${id}/stop`).then(r=>r.data)
+export const listDeployments=()=>http.get('/deployments').then(r=>r.data)
+export const getDeploymentLogs=id=>http.get(`/deployments/${id}/logs`).then(r=>r.data)
