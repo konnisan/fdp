@@ -3,6 +3,7 @@ package com.delivery.fdp.controller;
 import com.delivery.fdp.dto.PocProjectRequest;
 import com.delivery.fdp.model.PocProject;
 import com.delivery.fdp.service.ContainerRuntimeService;
+import com.delivery.fdp.service.DeploymentPlanService;
 import com.delivery.fdp.service.DeploymentService;
 import com.delivery.fdp.service.ProjectService;
 import org.springframework.web.bind.annotation.*;
@@ -15,13 +16,24 @@ import java.util.Map;
 public class PocProjectController {
     private final ProjectService projects;
     private final DeploymentService deploy;
+    private final DeploymentPlanService plan;
     private final ContainerRuntimeService runtime;
 
-    public PocProjectController(ProjectService projects,DeploymentService deploy,ContainerRuntimeService runtime){this.projects=projects;this.deploy=deploy;this.runtime=runtime;}
+    public PocProjectController(ProjectService projects,
+                                DeploymentService deploy,
+                                DeploymentPlanService plan,
+                                ContainerRuntimeService runtime) {
+        this.projects = projects;
+        this.deploy = deploy;
+        this.plan = plan;
+        this.runtime = runtime;
+    }
+
     @GetMapping public List<PocProject> list(){return projects.list();}
     @PostMapping public PocProject create(@RequestBody PocProjectRequest request){return projects.create(request);}
     @PutMapping("/{id}") public PocProject update(@PathVariable Long id,@RequestBody PocProjectRequest request){return projects.update(id,request);}
     @DeleteMapping("/{id}") public void delete(@PathVariable Long id){projects.delete(id);}
+    @GetMapping("/{id}/deployment-plan") public Map<String,Object> deploymentPlan(@PathVariable Long id){return plan.plan(id);}
     @PostMapping("/{id}/deploy") public Map<String,Object> deploy(@PathVariable Long id){return Map.of("taskId",deploy.deploy(id));}
     @PostMapping("/{id}/restart") public Map<String,String> restart(@PathVariable Long id){deploy.restart(id);return Map.of("status","RUNNING");}
     @PostMapping("/{id}/stop") public Map<String,String> stop(@PathVariable Long id){deploy.stop(id);return Map.of("status","STOPPED");}

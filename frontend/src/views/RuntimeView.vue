@@ -1,30 +1,54 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { Database, FolderKanban, GitBranch, Monitor, Network, Workflow } from 'lucide-vue-next'
+import { Database, RefreshCw, Server, Workflow } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
-import { listProjects } from '../api'
+import { getRuntimeStatus, listProjects } from '../api'
 
-const projects=ref([])
-const host=computed(()=>window.location.hostname||'localhost')
-const port=computed(()=>window.location.port||'80')
+const runtime=ref(null),projects=ref([]),loading=ref(true),error=ref('')
 const containerApps=computed(()=>projects.value.filter(p=>p.projectType==='CONTAINER').length)
 const staticApps=computed(()=>projects.value.filter(p=>p.projectType==='STATIC').length)
-onMounted(async()=>{projects.value=await listProjects()})
-const checks=[
-  {name:'Docker Engine',desc:'构建镜像并运行独立交付容器',icon:Monitor},
-  {name:'Nginx',desc:'唯一对外端口与 Path 反向代理',icon:Network},
-  {name:'Git / Codeup',desc:'从 Codeup clone / fetch / reset 指定分支源码',icon:GitBranch},
-  {name:'curl',desc:'容器 Health Check 与运行校验',icon:Workflow},
-  {name:'Persistent Data',desc:'Volume 数据保存在宿主机，不随容器删除',icon:Database},
-  {name:'Workspace',desc:'/data/fdp/workspaces 仅作为 Codeup 部署副本',icon:FolderKanban}
-]
+async function load(){loading.value=true;error.value='';try{[runtime.value,projects.value]=await Promise.all([getRuntimeStatus(),listProjects()])}catch(e){error.value=e.response?.data?.message||e.message}finally{loading.value=false}}
+onMounted(load)
 </script>
 
 <template>
   <div class="page-stack">
-    <PageHeader title="运行环境" description="V1 使用单台 Linux + Docker，不引入 K8S；未来多服务器横向扩展时再增加编排层。" />
-    <div class="runtime-summary"><article class="panel runtime-primary"><div><span>统一访问入口</span><h2>{{host}}:{{port}}</h2><p>Nginx 根据 Path 分流到静态目录或 127.0.0.1 上的 Docker 容器端口。</p></div><span class="status-text running"><i></i>单机 Docker</span></article><article class="panel runtime-stat"><span>Container 服务</span><strong>{{containerApps}}</strong><small>Docker 管理</small></article><article class="panel runtime-stat"><span>Static 项目</span><strong>{{staticApps}}</strong><small>Nginx 共享资源</small></article></div>
-    <section class="panel"><div class="panel-head"><div><h2>Linux 部署依赖</h2><p>正式服务器需要满足以下基础能力；Node/Java/Python 版本由各项目 Dockerfile 自己管理。</p></div></div><div class="runtime-grid"><article v-for="c in checks" :key="c.name" class="runtime-item"><span class="runtime-icon"><component :is="c.icon" :size="20" /></span><div><h3>{{c.name}}</h3><p>{{c.desc}}</p></div><span class="status-text running"><i></i>需要安装</span></article></div></section>
-    <section class="panel env-panel"><div class="panel-head"><div><h2>推荐服务器目录</h2><p>源码工作区、静态站点和持久化数据相互分离。</p></div></div><div class="env-code"><code>FDP_WORKSPACE_ROOT=/data/fdp/workspaces</code><code>FDP_STATIC_ROOT=/data/fdp/sites</code><code>FDP_DATA_ROOT=/data/fdp/data</code><code>FDP_NGINX_CONFIG_FILE=/etc/nginx/conf.d/fdp.conf</code><code>FDP_PUBLIC_PORT=8090</code></div></section>
+    <PageHeader title="运行环境" description="真实检测当前 FDP 所在设备；Windows 用于 DRY-RUN，Linux 用于正式 Docker 发布。">
+      <template #actions><button class="soft-button" @click="load"><RefreshCw :size="14" />重新检测</button></template>
+    </PageHeader>
+    <div v-if="error" class="error-banner">{{error}}</div>
+
+    <template v-if="runtime">
+      <div class="runtime-summary">
+        <article class="panel runtime-primary"><div><span>当前设备</span><h2>{{runtime.os}} · {{runtime.executionMode}}</h2><p>Java {{runtime.javaVersion}} · Nginx 对外端口 {{runtime.publicPort}}</p></div><span class="status-text" :class="runtime.liveReady?'running':'pending'"><i></i>{{runtime.liveReady?'LIVE READY':runtime.executionMode}}</span></article>
+        <article class="panel runtime-stat"><span>Container 项目</span><strong>{{containerApps}}</strong><small>Docker 单机交付</small></article>
+        <article class="panel runtime-stat"><span>Static 项目</span><strong>{{staticApps}}</strong><small>Nginx 静态发布</small></article>
+      </div>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>环境依赖检测</h2><p>来自后端当前机器的真实命令探测结果，不再使用固定展示数据。</p></div></div>
+        <div class="runtime-grid">
+          <article v-for="tool in runtime.tools" :key="tool.name" class="runtime-item">
+            <span class="runtime-icon"><Server v-if="tool.name!=='Docker'" :size="20" /><Workflow v-else :size="20" /></span>
+            <div><h3>{{tool.name}}</h3><p>{{tool.detail}}</p></div>
+            <span class="status-text" :class="tool.available?'running':'failed'"><i></i>{{tool.available?'可用':'不可用'}}</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel env-panel">
+        <div class="panel-head"><div><h2>FDP 运行配置</h2><p>Windows 默认保持 DRY_RUN；Linux 验收通过后再开启 FDP_EXECUTION_ENABLED=true。</p></div></div>
+        <div class="env-code">
+          <code>OS={{runtime.os}}</code>
+          <code>MODE={{runtime.executionMode}}</code>
+          <code>FDP_WORKSPACE_ROOT={{runtime.workspaceRoot}}</code>
+          <code>FDP_STATIC_ROOT={{runtime.staticRoot}}</code>
+          <code>FDP_DATA_ROOT={{runtime.dataRoot}}</code>
+          <code>FDP_NGINX_CONFIG_FILE={{runtime.nginxConfigFile}}</code>
+          <code>FDP_PUBLIC_PORT={{runtime.publicPort}}</code>
+        </div>
+      </section>
+    </template>
+    <div v-else-if="loading" class="panel empty-state">正在检测当前设备…</div>
   </div>
 </template>
