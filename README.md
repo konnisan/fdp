@@ -35,14 +35,71 @@ Codeup
 支持 monorepo 子目录：
 
 ```text
-Git URL:       git@codeup.../L2/IDP_AL.git
+Git URL:       https://codeup.aliyun.com/L2/IDP_AL.git
 Branch:        main
+Credential:    公司 Codeup
 Project Dir:   poc/poc/l2-data-aggregation/l2-server
 Dockerfile:    Dockerfile
 Build Context: .
 ```
 
-FDP 会先同步仓库，再进入 `Project Dir` 执行对应发布流程。
+FDP 会先验证 Git 地址和凭据，再同步仓库，进入 `Project Dir` 执行对应发布流程。
+
+### Codeup 凭据模型
+
+FDP V5 引入可复用 `source_credential`：
+
+```text
+Codeup Account
+    │
+    └── Source Credential
+          ├── HTTPS Clone Username
+          └── Personal Access Token
+                 │
+                 ├── Project A
+                 ├── Project B
+                 └── Project C
+```
+
+一个 Token 不等于一个仓库。Token 仍受 Codeup 账号本身的仓库访问权限和 Token scope 限制，因此同一账号有权限访问的多个项目可以复用同一个凭据。
+
+项目只保存：
+
+```text
+git_url
+git_branch
+credential_id
+```
+
+Token 不写入 Git URL，也不会出现在部署日志中。运行 Git 时使用临时 `GIT_ASKPASS` 注入 HTTPS 克隆账号和 Token。
+
+首次保存凭据前必须配置 32 字节 AES-GCM 主密钥：
+
+```bash
+export FDP_CREDENTIAL_KEY="$(openssl rand -base64 32)"
+```
+
+生产环境必须把这个值放进服务器的安全环境变量/secret 配置并持久保存。**如果更换该 Key，数据库里已有的 Token 将无法解密。**
+
+新建项目推荐流程：
+
+```text
+填写 Git URL
+   ↓
+选择 / 新增 Codeup Credential
+   ↓
+测试 Codeup（git ls-remote）
+   ↓
+配置 Project Directory
+   ↓
+选择 STATIC / CONTAINER
+   ↓
+配置 Dockerfile、端口、Volume 等
+   ↓
+保存
+   ↓
+拉取并部署
+```
 
 ## Docker 容器模型
 
@@ -144,9 +201,10 @@ export FDP_STATIC_ROOT=/data/fdp/sites
 export FDP_DATA_ROOT=/data/fdp/data
 export FDP_NGINX_CONFIG_FILE=/etc/nginx/conf.d/fdp.conf
 export FDP_PUBLIC_PORT=8090
+export FDP_CREDENTIAL_KEY='<固定的 Base64 32-byte key>'
 ```
 
-Codeup 凭据使用服务器 SSH Key / Git credential helper，不写入 FDP 数据库。
+SSH Git 地址仍然允许继续使用服务器 SSH Key；HTTPS Codeup Git 推荐使用 FDP Source Credential。
 
 ## 数据库
 
@@ -156,17 +214,22 @@ Codeup 凭据使用服务器 SSH Key / Git credential helper，不写入 FDP 数
 mysql -uroot -p < sql/fdp.sql
 ```
 
-已经运行 V3 的环境：
+已经运行 V4 的环境：
 
 ```bash
-mysql -uroot -p fdp < sql/migration_v4_docker_delivery.sql
+mysql -uroot -p fdp < sql/migration_v5_codeup_credentials.sql
 ```
 
-V4 迁移会保留旧 PM2/SQLite 列用于兼容历史，但新代码不再依赖它们。
+V5 新增：
+
+- `source_credential`
+- `delivery_project.credential_id`
+
+旧项目的 `credential_id` 保持 `NULL`，因此已有 SSH / 服务器 credential-helper 发布不会被强制中断。
 
 ## 本地开发
 
-默认 `FDP_EXECUTION_ENABLED=false`，所有 shell / Docker 命令只记录为 DRY-RUN：
+默认 `FDP_EXECUTION_ENABLED=false`，所有 shell / Docker / Git 命令只记录为 DRY-RUN：
 
 ```bash
 cd backend
@@ -178,6 +241,14 @@ cd frontend
 npm install
 npm run dev
 ```
+
+本地如需实际保存 Codeup Credential，仍需配置：
+
+```bash
+export FDP_CREDENTIAL_KEY="$(openssl rand -base64 32)"
+```
+
+当 `FDP_EXECUTION_ENABLED=false` 时，“测试 Codeup”返回 `DRY_RUN`，不会真的访问远端仓库。
 
 ## 当前不做
 

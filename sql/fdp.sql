@@ -1,12 +1,27 @@
 CREATE DATABASE IF NOT EXISTS fdp DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE fdp;
 
+CREATE TABLE IF NOT EXISTS source_credential (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(128) NOT NULL,
+  provider VARCHAR(32) NOT NULL DEFAULT 'CODEUP',
+  clone_username VARCHAR(128) NOT NULL,
+  secret_encrypted TEXT NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'UNTESTED',
+  last_test_message VARCHAR(512) NULL,
+  last_test_time DATETIME NULL,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_source_credential_name (name)
+);
+
 CREATE TABLE IF NOT EXISTS delivery_project (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   project_code VARCHAR(64) NOT NULL,
   project_name VARCHAR(128) NOT NULL,
   git_url VARCHAR(512) NOT NULL,
   git_branch VARCHAR(128) NOT NULL DEFAULT 'develop',
+  credential_id BIGINT NULL,
   project_type VARCHAR(32) NOT NULL COMMENT 'STATIC or CONTAINER',
   project_directory VARCHAR(512) NOT NULL DEFAULT '.',
   build_command VARCHAR(512) NULL COMMENT 'STATIC build only',
@@ -29,7 +44,8 @@ CREATE TABLE IF NOT EXISTS delivery_project (
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_delivery_project_code (project_code),
   UNIQUE KEY uk_delivery_project_preview_path (preview_path),
-  UNIQUE KEY uk_delivery_project_host_port (host_port)
+  UNIQUE KEY uk_delivery_project_host_port (host_port),
+  KEY idx_delivery_project_credential (credential_id)
 );
 
 CREATE TABLE IF NOT EXISTS deployment_task (
