@@ -23,6 +23,7 @@ public class DeploymentService {
     private final PocProjectRepository projects;
     private final DeploymentRepository deployments;
     private final CommandExecutor exec;
+    private final GitAuthenticationService gitAuth;
     private final TaskExecutor deploymentTaskExecutor;
     private final Set<Long> activeProjects = ConcurrentHashMap.newKeySet();
 
@@ -30,11 +31,13 @@ public class DeploymentService {
                              PocProjectRepository projects,
                              DeploymentRepository deployments,
                              CommandExecutor exec,
+                             GitAuthenticationService gitAuth,
                              @Qualifier("deploymentTaskExecutor") TaskExecutor deploymentTaskExecutor) {
         this.props = props;
         this.projects = projects;
         this.deployments = deployments;
         this.exec = exec;
+        this.gitAuth = gitAuth;
         this.deploymentTaskExecutor = deploymentTaskExecutor;
     }
 
@@ -68,7 +71,7 @@ public class DeploymentService {
                 String gitCommand = Files.exists(workspace.resolve(".git"))
                         ? "git fetch --prune origin && git checkout " + q(project.getGitBranch()) + " && git reset --hard origin/" + q(project.getGitBranch())
                         : "git clone --branch " + q(project.getGitBranch()) + " --single-branch " + q(project.getGitUrl()) + " .";
-                run(taskId, gitCommand, workspace);
+                runGit(taskId, project, gitCommand, workspace);
                 String sha = props.isExecutionEnabled() ? run(taskId, "git rev-parse HEAD", workspace).trim() : "DRY-RUN";
                 deployments.commit(taskId, sha);
                 return sha;
@@ -275,6 +278,7 @@ public class DeploymentService {
     private PocProject project(Long id) {return projects.findById(id).orElseThrow(() -> new IllegalArgumentException("Delivery project not found: " + id));}
     private PocProject container(Long id) {PocProject p=project(id);if(!"CONTAINER".equals(p.getProjectType()))throw new IllegalArgumentException("Only CONTAINER projects have a runtime process");return p;}
     private String run(long taskId,String command,Path cwd){CommandExecutor.Result result=exec.execute(command,cwd,Map.of());deployments.log(taskId,"$ "+command+"\n"+result.output());check(result);return result.output();}
+    private String runGit(long taskId,PocProject project,String command,Path cwd){CommandExecutor.Result result=gitAuth.execute(project.getCredentialId(),command,cwd);deployments.log(taskId,"$ "+command+"\n"+result.output());check(result);return result.output();}
     private void check(CommandExecutor.Result result){if(!result.success())throw new IllegalStateException("Command failed ("+result.exitCode()+"): "+result.output());}
     private String q(Object value){String text=String.valueOf(value);if(!text.matches("^[A-Za-z0-9_./:@\\\\ -]+$"))throw new IllegalArgumentException("Unsafe command argument: "+text);return "'"+text.replace("'","'\\''")+"'";}
     private String message(Throwable error){return error.getMessage()==null?error.getClass().getSimpleName():error.getMessage();}

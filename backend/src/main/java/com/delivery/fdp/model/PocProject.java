@@ -8,6 +8,8 @@ public class PocProject {
     private String projectName;
     private String gitUrl;
     private String gitBranch;
+    private Long credentialId;
+    private String credentialName;
     private String projectType;
     private String projectDirectory;
     private String buildCommand;
@@ -34,6 +36,8 @@ public class PocProject {
     public String getProjectName(){return projectName;} public void setProjectName(String v){projectName=v;}
     public String getGitUrl(){return gitUrl;} public void setGitUrl(String v){gitUrl=v;}
     public String getGitBranch(){return gitBranch;} public void setGitBranch(String v){gitBranch=v;}
+    public Long getCredentialId(){return credentialId;} public void setCredentialId(Long v){credentialId=v;}
+    public String getCredentialName(){return credentialName;} public void setCredentialName(String v){credentialName=v;}
     public String getProjectType(){return projectType;} public void setProjectType(String v){projectType=v;}
     public String getProjectDirectory(){return projectDirectory;} public void setProjectDirectory(String v){projectDirectory=v;}
     public String getBuildCommand(){return buildCommand;} public void setBuildCommand(String v){buildCommand=v;}

@@ -3,9 +3,11 @@ package com.delivery.fdp.service;
 import com.delivery.fdp.dto.PocProjectRequest;
 import com.delivery.fdp.model.PocProject;
 import com.delivery.fdp.repository.PocProjectRepository;
+import com.delivery.fdp.repository.SourceCredentialRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -13,8 +15,13 @@ import java.util.Locale;
 @Service
 public class ProjectService {
     private final PocProjectRepository repo;
+    private final SourceCredentialRepository credentials;
 
-    public ProjectService(PocProjectRepository repo){this.repo=repo;}
+    public ProjectService(PocProjectRepository repo, SourceCredentialRepository credentials){
+        this.repo=repo;
+        this.credentials=credentials;
+    }
+
     public List<PocProject> list(){return repo.findAll();}
     public PocProject get(Long id){return repo.findById(id).orElseThrow(() -> new IllegalArgumentException("Delivery project not found: " + id));}
     public PocProject create(PocProjectRequest r){normalize(r);validate(r,null);return get(repo.create(r));}
@@ -23,6 +30,7 @@ public class ProjectService {
 
     private void normalize(PocProjectRequest r){
         if(r.getProjectCode()!=null)r.setProjectCode(r.getProjectCode().trim().toLowerCase(Locale.ROOT));
+        if(r.getGitUrl()!=null)r.setGitUrl(r.getGitUrl().trim());
         if(!StringUtils.hasText(r.getGitBranch()))r.setGitBranch("develop");
         if(r.getProjectType()!=null)r.setProjectType(r.getProjectType().trim().toUpperCase(Locale.ROOT));
         if(!StringUtils.hasText(r.getProjectDirectory()))r.setProjectDirectory(".");
@@ -50,6 +58,7 @@ public class ProjectService {
     private void validate(PocProjectRequest r,Long id){
         if(!StringUtils.hasText(r.getProjectCode())||!r.getProjectCode().matches("^[a-z0-9][a-z0-9-]{1,49}$"))throw new IllegalArgumentException("Invalid projectCode");
         if(!StringUtils.hasText(r.getProjectName())||!StringUtils.hasText(r.getGitUrl()))throw new IllegalArgumentException("projectName and gitUrl are required");
+        validateGitSource(r);
         if(!"STATIC".equals(r.getProjectType())&&!"CONTAINER".equals(r.getProjectType()))throw new IllegalArgumentException("projectType must be STATIC or CONTAINER");
         validateRelativePath(r.getProjectDirectory(),"projectDirectory");
         if(!StringUtils.hasText(r.getPreviewPath())||"/".equals(r.getPreviewPath())||!r.getPreviewPath().matches("^/[A-Za-z0-9][A-Za-z0-9/_-]*$"))throw new IllegalArgumentException("Invalid previewPath");
@@ -75,6 +84,25 @@ public class ProjectService {
         if(repo.count("project_code",r.getProjectCode(),id)>0)throw new IllegalArgumentException("projectCode already exists");
         if(repo.count("preview_path",r.getPreviewPath(),id)>0)throw new IllegalArgumentException("previewPath already exists");
         if(r.getHostPort()!=null&&repo.count("host_port",r.getHostPort(),id)>0)throw new IllegalArgumentException("hostPort already exists");
+    }
+
+    private void validateGitSource(PocProjectRequest r) {
+        String gitUrl = r.getGitUrl();
+        if (gitUrl.contains("\n") || gitUrl.contains("\r") || gitUrl.contains("\0")) throw new IllegalArgumentException("Invalid gitUrl");
+        boolean https = gitUrl.startsWith("https://") || gitUrl.startsWith("http://");
+        if (https) {
+            try {
+                URI uri = URI.create(gitUrl);
+                if (uri.getUserInfo() != null) throw new IllegalArgumentException("Do not embed username or token in gitUrl; use Source Credential instead");
+            } catch (IllegalArgumentException e) {
+                if (e.getMessage() != null && e.getMessage().startsWith("Do not embed")) throw e;
+                throw new IllegalArgumentException("Invalid HTTPS gitUrl");
+            }
+            if (r.getCredentialId() == null) throw new IllegalArgumentException("HTTPS Codeup Git requires a source credential");
+        }
+        if (r.getCredentialId() != null && credentials.findById(r.getCredentialId()).isEmpty()) {
+            throw new IllegalArgumentException("Source credential not found: " + r.getCredentialId());
+        }
     }
 
     private void validateRelativePath(String value,String field){
