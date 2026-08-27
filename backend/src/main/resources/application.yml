@@ -19,3 +19,5 @@ fdp:
     nginx-config-file: ${FDP_NGINX_CONFIG_FILE:./runtime/nginx/fdp.conf}
     nginx-public-port: ${FDP_PUBLIC_PORT:8090}
     nginx-reload-command: ${FDP_NGINX_RELOAD_COMMAND:nginx -t && nginx -s reload}
+  security:
+    credential-key: ${FDP_CREDENTIAL_KEY:}
