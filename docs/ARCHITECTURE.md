@@ -1,160 +1,257 @@
-# FDP V4 Docker Delivery Architecture
+# FDP Delivery Architecture
 
-## 1. Product boundary
+## 1. Product positioning
 
-Codeup is the source of truth. FDP never becomes a source-code editing platform.
+FDP is an internal delivery and customer-preview control platform built around Codeup.
 
-V1 runs on one Linux server and supports two delivery strategies:
+The core boundary is:
+
+- Codeup is the source-code and CI source of truth.
+- FS produces static POC deliverables.
+- Project managers own the detailed configuration of formal-project Codeup pipelines.
+- FDP does not become a source-code editing platform and does not own formal-project CI logic.
+- FDP connects Codeup delivery outputs to the company's private-cloud runtime and exposes a unified customer preview entry.
+
+The current target is a single private-cloud Linux host with Nginx and Docker. Kubernetes is not required in the first stage.
+
+## 2. Two delivery paths
+
+FDP supports two fundamentally different delivery paths.
+
+### 2.1 STATIC POC
+
+Static POC HTML is already a deployable artifact, so it can be delivered directly from Git.
 
 ```text
-STATIC     -> shared files -> Nginx
-CONTAINER  -> Docker image -> Docker container -> Nginx
+FS
+  -> generate static POC HTML
+  -> push to Codeup static repository
+  -> FDP git clone / fetch / reset
+  -> publish files to private-cloud static directory
+  -> generate Nginx route
+  -> customer preview
 ```
 
-Kubernetes is deliberately excluded from V1.
-
-## 2. Why CONTAINER instead of NODE_SQLITE / JAVA / PYTHON
-
-FDP should model deployment, not programming languages.
+Responsibilities:
 
 ```text
-Node.js  ─┐
-Java     ─┤
-Python   ─┼─ Dockerfile -> image -> CONTAINER
-Go       ─┤
-Others   ─┘
+FS      : generate and upload POC HTML
+Codeup  : persist source/deliverable history
+FDP     : download, publish, route, verify, expose preview URL
 ```
 
-This keeps the FDP backend unchanged when a new application technology appears.
+FDP does not run npm, Maven, Docker build, or other application build steps for this path.
 
-## 3. Git and monorepo layout
+Initial integration repository:
 
-A delivery project contains:
+```text
+https://codeup.aliyun.com/6038b0d9eb45243512067136/poc-html.git
+```
+
+The repository may contain multiple POC deliveries, for example:
+
+```text
+poc-html/
+  <build-id-a>/index.html
+  <build-id-b>/index.html
+```
+
+## 3. Formal project delivery
+
+Formal application projects use Codeup Pipeline as the CI boundary.
+
+The detailed pipeline implementation is managed by each project manager/team. FDP only needs to integrate the workflow and consume its successful build output.
+
+```text
+Developer / Project Manager
+          -> Codeup Git
+          -> Codeup Pipeline
+               - compile
+               - test
+               - package
+               - build deployable artifact
+          -> successful pipeline artifact
+          -> FDP queries pipeline/build result
+          -> FDP downloads artifact
+          -> FDP deploys artifact into private cloud
+          -> health check
+          -> Nginx route
+          -> customer preview
+```
+
+The architectural boundary is therefore:
+
+```text
+Codeup Pipeline = CI / build ownership
+FDP             = delivery / private-cloud deployment ownership
+```
+
+FDP should not require project managers to duplicate pipeline build details in FDP.
+
+## 4. Formal-project artifact model
+
+FDP should consume deployable outputs instead of rebuilding source code itself.
+
+Supported artifact forms can evolve gradually:
+
+```text
+PIPELINE_ARTIFACT
+  - DOCKER_IMAGE_TAR
+  - JAR
+  - ARCHIVE
+
+Future:
+  - PRIVATE_REGISTRY_IMAGE
+```
+
+For the container-first formal-project path, the preferred short-term deliverable is a Docker image artifact produced by Codeup Pipeline.
+
+Example:
+
+```text
+Codeup Pipeline
+  -> docker build
+  -> docker save app:<commit> -o app-image.tar
+  -> publish pipeline artifact
+
+FDP
+  -> download app-image.tar
+  -> docker load
+  -> replace target container
+  -> bind container to 127.0.0.1:<hostPort>
+  -> health check
+  -> publish Nginx preview route
+```
+
+This keeps Node.js, Maven, Python and other application build runtimes out of the private-cloud deployment host.
+
+## 5. FDP project model direction
+
+The delivery model should describe artifact source and deployment behavior rather than programming language.
+
+Recommended high-level strategies:
+
+```text
+STATIC_GIT
+PIPELINE_ARTIFACT
+```
+
+`STATIC_GIT` needs fields such as:
 
 ```text
 git_url
 git_branch
+credential_id
 project_directory
+build_output
+preview_path
 ```
 
-`project_directory` allows a service to live below the repository root, for example:
+`PIPELINE_ARTIFACT` should evolve toward fields such as:
 
 ```text
-repo: L2/IDP_AL
-project_directory: poc/poc/l2-data-aggregation/l2-server
-```
-
-The Linux workspace remains disposable:
-
-```text
-/data/fdp/workspaces/<projectCode>
-```
-
-## 4. Container build and versioning
-
-CONTAINER projects additionally define:
-
-```text
-dockerfile_path
-docker_build_context
-image_name
+codeup_repository
+codeup_pipeline_id
+pipeline_name
+artifact_name
+artifact_type
+deployment_environment
 container_name
 host_port
 container_port
-cpu_limit
-memory_limit
-host_data_path
-container_data_path
 health_check_path
+preview_path
 ```
 
-Every successful Git sync produces a commit SHA. Docker images are tagged by that commit:
+The project manager owns the internal pipeline stages and commands; FDP only records what is required to locate a successful build and deploy its artifact.
+
+## 6. Deployment task model
+
+FDP keeps the Task / Step / Log execution model.
+
+STATIC POC:
 
 ```text
-fdp/l2-server:a82fc7317d2e
+PREPARE
+  -> GIT_SYNC
+  -> STATIC_PUBLISH
+  -> ROUTE
+  -> VERIFY
 ```
 
-This gives deployment history a stable source-version/image-version relationship and creates a foundation for rollback later.
-
-## 5. Network boundary
-
-Containers never publish directly on the server's external interface:
+Formal project:
 
 ```text
-docker -p 127.0.0.1:3101:3000
+PREPARE
+  -> PIPELINE_QUERY
+  -> ARTIFACT_DOWNLOAD
+  -> ARTIFACT_INSTALL / IMAGE_LOAD
+  -> RUNTIME_REPLACE
+  -> HEALTH_CHECK
+  -> ROUTE
+  -> VERIFY
 ```
 
-Nginx is the only external entry point:
+Useful deployment states include:
 
 ```text
-Nginx :8090
-  ├── /poc/static-a/ -> shared static files
-  ├── /app/l2/       -> 127.0.0.1:3101
-  └── /app/service/  -> 127.0.0.1:3102
+QUEUED
+BUILDING
+BUILD_SUCCESS
+DOWNLOADING
+DEPLOYING
+DEPLOYED
+FAILED
 ```
 
-## 6. Persistence
+## 7. Private-cloud network boundary
 
-Containers are replaceable. Mutable data must live outside the container when persistence is required.
+The private-cloud runtime should not expose business containers directly.
+
+Example:
 
 ```text
-Host:      /data/fdp/data/l2-server
-Container: /app/data
+docker run -p 127.0.0.1:3101:8080 ...
 ```
 
-The first V1 model supports one bind mount per project. It can later evolve to a dedicated volume table.
-
-## 7. Deployment task pipeline
-
-FDP keeps the Jenkins-inspired Task/Step/Log model.
-
-STATIC:
+Nginx remains the external entry point:
 
 ```text
-PREPARE -> GIT_SYNC -> STATIC_BUILD -> STATIC_PUBLISH -> ROUTE -> VERIFY
+Customer
+   -> Nginx unified public port
+       -> /poc/<id>/        -> static files
+       -> /app/<project>/   -> 127.0.0.1:<hostPort>
 ```
 
-CONTAINER:
+This keeps customer preview routing under FDP control.
+
+## 8. Current implementation versus target direction
+
+The current FDP code already contains a local `CONTAINER` flow that can clone source and execute Docker build on the FDP host.
+
+That capability may remain temporarily as a compatibility path, but it is no longer the preferred formal-project architecture.
+
+New formal-project work should prioritize:
 
 ```text
-PREPARE -> GIT_SYNC -> DOCKER_BUILD -> CONTAINER_REPLACE -> ROUTE -> VERIFY
+Codeup Pipeline integration
+  -> successful build discovery
+  -> artifact download
+  -> private-cloud deployment
 ```
 
-`STATIC_BUILD` can be `SKIPPED`.
+Do not continue expanding FDP into a second CI system.
 
-A CONTAINER task stores both `commit_id` and `image_tag`.
+## 9. Implementation order
 
-## 8. Resource control
+The agreed implementation sequence is incremental:
 
-Single-host Docker cannot scale horizontally across servers, but V1 still prevents one service from consuming the entire machine:
+1. Complete `FS -> Codeup -> FDP STATIC -> Nginx preview`.
+2. Stabilize Codeup credentials and static deployment lifecycle.
+3. Investigate and connect Codeup Pipeline APIs.
+4. Query successful pipeline runs and enumerate downloadable artifacts.
+5. Download a selected artifact to the private cloud.
+6. Deploy the artifact and expose it through FDP/Nginx.
+7. Add optional automation/webhook triggering only after the manual flow is reliable.
 
-```text
---cpus <limit>
---memory <limit>
-```
-
-Kubernetes is a later orchestration strategy when one host is no longer enough.
-
-## 9. Future K8S boundary
-
-The upper-level FDP concepts should remain stable:
-
-```text
-Project
-Git
-Task
-Step
-Log
-Commit
-Image
-Preview Path
-```
-
-Future K8S work should replace only the runtime strategy:
-
-```text
-Docker single host  -> current V1
-Kubernetes          -> future multi-host orchestration
-```
-
-Do not introduce Pod/Deployment/Service/Ingress/Helm into V1.
+This sequence keeps the first customer-preview path simple while preserving the correct long-term boundary between Codeup CI and FDP delivery.
