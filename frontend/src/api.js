@@ -22,6 +22,13 @@ export const getStaticCatalog=()=>http.get('/static-catalog').then(r=>r.data)
 export const refreshStaticCatalog=()=>http.post('/static-catalog/refresh').then(r=>r.data)
 export const activateStaticProject=projectName=>http.post('/static-catalog/activate',{projectName}).then(r=>r.data)
 
+export const getYunxiaoStatus=()=>http.get('/yunxiao/status').then(r=>r.data)
+export const listYunxiaoPipelines=params=>http.get('/yunxiao/pipelines',{params}).then(r=>r.data)
+export const listYunxiaoPipelineRuns=(pipelineId,params)=>http.get(`/yunxiao/pipelines/${pipelineId}/runs`,{params}).then(r=>r.data)
+export const getYunxiaoPipelineRun=(pipelineId,runId)=>http.get(`/yunxiao/pipelines/${pipelineId}/runs/${runId}`).then(r=>r.data)
+export const listYunxiaoRepositories=params=>http.get('/yunxiao/packages/repositories',{params}).then(r=>r.data)
+export const listYunxiaoArtifacts=(repoId,params)=>http.get(`/yunxiao/packages/repositories/${repoId}/artifacts`,{params}).then(r=>r.data)
+
 export const listSourceCredentials=()=>http.get('/source-credentials').then(r=>r.data)
 export const createSourceCredential=data=>http.post('/source-credentials',data).then(r=>r.data)
 export const updateSourceCredential=(id,data)=>http.put(`/source-credentials/${id}`,data).then(r=>r.data)
