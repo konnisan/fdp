@@ -257,8 +257,7 @@ public class StaticCatalogService {
     }
 
     private String q(Object value) {
-        String text = String.valueOf(value);
-        return "'" + text.replace("'", "'\\''") + "'";
+        return ShellCommandSupport.quote(String.valueOf(value));
     }
 
     private void check(CommandExecutor.Result result, String message) {
