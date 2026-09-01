@@ -176,11 +176,7 @@ public class StaticSourceService {
     }
 
     private String q(Object value) {
-        String text = String.valueOf(value);
-        if (!text.matches("^[A-Za-z0-9_./:@\\\\ -]+$")) {
-            throw new IllegalArgumentException("Unsafe command argument: " + text);
-        }
-        return "'" + text.replace("'", "'\\''") + "'";
+        return ShellCommandSupport.quote(String.valueOf(value));
     }
 
     private String message(Throwable error) {
