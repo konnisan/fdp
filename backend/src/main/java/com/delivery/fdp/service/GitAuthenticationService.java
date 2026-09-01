@@ -50,18 +50,44 @@ public class GitAuthenticationService {
 
         Path askPass = null;
         try {
-            askPass = Files.createTempFile("fdp-git-askpass-", ".sh");
-            Files.writeString(askPass, """
-                    #!/bin/sh
-                    case "$1" in
-                      *Username*) printf '%s\\n' "$FDP_GIT_USERNAME" ;;
-                      *Password*) printf '%s\\n' "$FDP_GIT_TOKEN" ;;
-                      *) printf '\\n' ;;
-                    esac
-                    """);
-            if (!askPass.toFile().setExecutable(true, true)) {
-                throw new IllegalStateException("Unable to make temporary Git credential helper executable");
+            boolean windows = ShellCommandSupport.windows();
+            askPass = Files.createTempFile(
+                    "fdp-git-askpass-",
+                    windows ? ".cmd" : ".sh"
+            );
+            if (windows) {
+                Files.writeString(askPass, """
+                        @echo off
+                        set "PROMPT=%~1"
+                        echo(%PROMPT%| findstr /I /C:"Username" >nul
+                        if %errorlevel%==0 (
+                          <nul set /p "=%FDP_GIT_USERNAME%"
+                          echo(
+                          exit /b 0
+                        )
+                        echo(%PROMPT%| findstr /I /C:"Password" >nul
+                        if %errorlevel%==0 (
+                          <nul set /p "=%FDP_GIT_TOKEN%"
+                          echo(
+                          exit /b 0
+                        )
+                        echo(
+                        exit /b 0
+                        """);
+            } else {
+                Files.writeString(askPass, """
+                        #!/bin/sh
+                        case "$1" in
+                          *Username*) printf '%s\\n' "$FDP_GIT_USERNAME" ;;
+                          *Password*) printf '%s\\n' "$FDP_GIT_TOKEN" ;;
+                          *) printf '\\n' ;;
+                        esac
+                        """);
+                if (!askPass.toFile().setExecutable(true, true)) {
+                    throw new IllegalStateException("Unable to make temporary Git credential helper executable");
+                }
             }
+
             Map<String, String> env = new HashMap<>();
             env.put("GIT_ASKPASS", askPass.toAbsolutePath().toString());
             env.put("GIT_TERMINAL_PROMPT", "0");
