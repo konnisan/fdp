@@ -94,6 +94,15 @@ public class GitAuthenticationService {
             env.put("FDP_GIT_USERNAME", username);
             env.put("FDP_GIT_TOKEN", token);
 
+            // Git for Windows normally enables Git Credential Manager globally.
+            // Disable all configured credential helpers for FDP child processes so
+            // Codeup authentication always comes from the server-side env values
+            // above and never opens an interactive GCM login dialog.
+            env.put("GIT_CONFIG_COUNT", "1");
+            env.put("GIT_CONFIG_KEY_0", "credential.helper");
+            env.put("GIT_CONFIG_VALUE_0", "");
+            env.put("GCM_INTERACTIVE", "Never");
+
             CommandExecutor.Result result = executor.execute(command, cwd, env);
             return new CommandExecutor.Result(result.exitCode(), redact(result.output(), token));
         } catch (Exception e) {
