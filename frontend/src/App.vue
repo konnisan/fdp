@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AppLayout from './layout/Index.vue'
 import HomeView from './views/HomeView.vue'
 import ProjectsView from './views/ProjectsView.vue'
+import StaticCatalogView from './views/StaticCatalogView.vue'
 import ProjectDetailView from './views/ProjectDetailView.vue'
 import DeploymentsView from './views/DeploymentsView.vue'
 import PreviewsView from './views/PreviewsView.vue'
@@ -14,7 +15,8 @@ function navigate(to){if(window.location.pathname!==to)window.history.pushState(
 const route=computed(()=>{
   const p=path.value
   if(/^\/poc-projects\/\d+$/.test(p))return{component:ProjectDetailView,projectId:Number(p.split('/').pop()),title:'交付项目详情'}
-  if(p==='/poc-projects')return{component:ProjectsView,title:'交付项目'}
+  if(p==='/static-previews')return{component:StaticCatalogView,title:'静态预览'}
+  if(p==='/poc-projects')return{component:ProjectsView,title:'容器项目'}
   if(p==='/deployments')return{component:DeploymentsView,title:'部署中心'}
   if(p==='/previews')return{component:PreviewsView,title:'访问入口'}
   if(p==='/runtime')return{component:RuntimeView,title:'运行环境'}
