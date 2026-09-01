@@ -8,6 +8,8 @@ export const updateProject=(id,data)=>http.put(`/poc-projects/${id}`,data).then(
 export const deleteProject=id=>http.delete(`/poc-projects/${id}`)
 export const getDeploymentPlan=id=>http.get(`/poc-projects/${id}/deployment-plan`).then(r=>r.data)
 export const deployProject=id=>http.post(`/poc-projects/${id}/deploy`).then(r=>r.data)
+export const syncProjectSource=id=>http.post(`/poc-projects/${id}/sync-source`).then(r=>r.data)
+export const listStaticEntries=id=>http.get(`/poc-projects/${id}/static-entries`).then(r=>r.data)
 export const restartProject=id=>http.post(`/poc-projects/${id}/restart`).then(r=>r.data)
 export const stopProject=id=>http.post(`/poc-projects/${id}/stop`).then(r=>r.data)
 export const getRuntimeLogs=id=>http.get(`/poc-projects/${id}/runtime-logs`).then(r=>r.data.content)
