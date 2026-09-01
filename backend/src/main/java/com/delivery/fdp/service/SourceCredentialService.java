@@ -129,8 +129,7 @@ public class SourceCredentialService {
     }
 
     private String sh(String value) {
-        if (value.contains("\n") || value.contains("\r") || value.contains("\0")) throw new IllegalArgumentException("Unsafe Git argument");
-        return "'" + value.replace("'", "'\"'\"'") + "'";
+        return ShellCommandSupport.quote(value);
     }
 
     private String cleanResult(String value, String fallback) {
