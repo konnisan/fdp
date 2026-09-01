@@ -34,6 +34,20 @@ public class GitAuthenticationService {
         SourceCredentialRepository.CredentialSecret stored = credentials.findSecretById(credentialId)
                 .orElseThrow(() -> new IllegalArgumentException("Source credential not found: " + credentialId));
         String token = crypto.decrypt(stored.encryptedSecret());
+        return execute(stored.cloneUsername(), token, command, cwd);
+    }
+
+    public CommandExecutor.Result execute(String username, String token, String command, Path cwd) {
+        if (!runtime.isExecutionEnabled()) {
+            return executor.execute(command, cwd);
+        }
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("Codeup HTTPS clone username is required");
+        }
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("Codeup personal access token is required");
+        }
+
         Path askPass = null;
         try {
             askPass = Files.createTempFile("fdp-git-askpass-", ".sh");
@@ -51,7 +65,7 @@ public class GitAuthenticationService {
             Map<String, String> env = new HashMap<>();
             env.put("GIT_ASKPASS", askPass.toAbsolutePath().toString());
             env.put("GIT_TERMINAL_PROMPT", "0");
-            env.put("FDP_GIT_USERNAME", stored.cloneUsername());
+            env.put("FDP_GIT_USERNAME", username);
             env.put("FDP_GIT_TOKEN", token);
 
             CommandExecutor.Result result = executor.execute(command, cwd, env);
