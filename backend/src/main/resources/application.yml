@@ -29,5 +29,14 @@ fdp:
     token: ${FDP_STATIC_CODEUP_TOKEN:}
     workspace: ${FDP_STATIC_CODEUP_WORKSPACE:static-codeup}
     root-directory: ${FDP_STATIC_CODEUP_ROOT_DIR:.}
+  yunxiao:
+    # Read-only integration for Yunxiao Flow pipelines and Packages artifacts.
+    # Center edition uses openapi-rdc.aliyuncs.com and requires organizationId.
+    enabled: ${FDP_YUNXIAO_ENABLED:false}
+    domain: ${FDP_YUNXIAO_DOMAIN:openapi-rdc.aliyuncs.com}
+    organization-id: ${FDP_YUNXIAO_ORGANIZATION_ID:}
+    # Reuse the STATIC PAT by default; it must also have Flow/Packages read permission.
+    token: ${FDP_YUNXIAO_TOKEN:${FDP_STATIC_CODEUP_TOKEN:}}
+    page-size: ${FDP_YUNXIAO_PAGE_SIZE:30}
   security:
     credential-key: ${FDP_CREDENTIAL_KEY:}
