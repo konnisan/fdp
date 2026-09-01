@@ -18,6 +18,10 @@ export const listDeployments=projectId=>http.get('/deployments',{params:projectI
 export const getDeploymentSteps=id=>http.get(`/deployments/${id}/steps`).then(r=>r.data)
 export const getDeploymentLogs=id=>http.get(`/deployments/${id}/logs`).then(r=>r.data)
 
+export const getStaticCatalog=()=>http.get('/static-catalog').then(r=>r.data)
+export const refreshStaticCatalog=()=>http.post('/static-catalog/refresh').then(r=>r.data)
+export const activateStaticProject=projectName=>http.post('/static-catalog/activate',{projectName}).then(r=>r.data)
+
 export const listSourceCredentials=()=>http.get('/source-credentials').then(r=>r.data)
 export const createSourceCredential=data=>http.post('/source-credentials',data).then(r=>r.data)
 export const updateSourceCredential=(id,data)=>http.put(`/source-credentials/${id}`,data).then(r=>r.data)
