@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: financial-delivery-platform
+  config:
+    import: optional:file:./.env[.properties],optional:file:./backend/.env[.properties]
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:fdp}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: ${MYSQL_USERNAME:root}
@@ -19,5 +21,13 @@ fdp:
     nginx-config-file: ${FDP_NGINX_CONFIG_FILE:./runtime/nginx/fdp.conf}
     nginx-public-port: ${FDP_PUBLIC_PORT:8090}
     nginx-reload-command: ${FDP_NGINX_RELOAD_COMMAND:nginx -t && nginx -s reload}
+  static-source:
+    enabled: ${FDP_STATIC_CODEUP_ENABLED:false}
+    git-url: ${FDP_STATIC_CODEUP_GIT_URL:}
+    branch: ${FDP_STATIC_CODEUP_BRANCH:main}
+    username: ${FDP_STATIC_CODEUP_USERNAME:}
+    token: ${FDP_STATIC_CODEUP_TOKEN:}
+    workspace: ${FDP_STATIC_CODEUP_WORKSPACE:static-codeup}
+    root-directory: ${FDP_STATIC_CODEUP_ROOT_DIR:.}
   security:
     credential-key: ${FDP_CREDENTIAL_KEY:}
