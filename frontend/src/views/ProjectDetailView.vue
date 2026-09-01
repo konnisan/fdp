@@ -99,7 +99,7 @@ onUnmounted(()=>{alive=false})
       <section v-if="activeTab==='source'" class="detail-grid">
         <article class="panel info-card span-2"><h3><GitBranch :size="17" />Codeup 源码</h3><dl><div><dt>Git</dt><dd class="break">{{project.gitUrl}}</dd></div><div><dt>Branch</dt><dd>{{project.gitBranch}}</dd></div><div><dt>仓库内目录</dt><dd><code>{{project.projectDirectory||'.'}}</code></dd></div><div><dt>已部署 Commit</dt><dd><code>{{short(project.deployedCommit)}}</code></dd></div></dl></article>
         <template v-if="project.projectType==='STATIC'">
-          <article class="panel info-card"><h3>静态发布配置</h3><dl><div><dt>构建命令</dt><dd><code>{{project.buildCommand||'无需构建'}}</code></dd></div><div><dt>发布源目录</dt><dd><code>{{project.buildOutput||'.'}}</code></dd><div><dt>Preview Path</dt><dd><code>{{project.previewPath}}</code></dd></div></dl></article>
+          <article class="panel info-card"><h3>静态发布配置</h3><dl><div><dt>构建命令</dt><dd><code>{{project.buildCommand||'无需构建'}}</code></dd></div><div><dt>发布源目录</dt><dd><code>{{project.buildOutput||'.'}}</code></dd></div><div><dt>Preview Path</dt><dd><code>{{project.previewPath}}</code></dd></div></dl></article>
           <article class="panel info-card"><h3>操作说明</h3><dl><div><dt>仅拉取源码</dt><dd>clone / fetch / reset 到最新 Codeup Branch，不改 Nginx。</dd></div><div><dt>拉取并发布</dt><dd>再次同步 Git，再 rsync 到静态目录并刷新 Nginx。</dd></div></dl></article>
 
           <article class="panel info-card span-2">
