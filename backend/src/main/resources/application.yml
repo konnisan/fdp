@@ -13,6 +13,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 fdp:
+  cors:
+    allowed-origins: ${FDP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   runtime:
     execution-enabled: ${FDP_EXECUTION_ENABLED:false}
     workspace-root: ${FDP_WORKSPACE_ROOT:./runtime/workspaces}
