@@ -45,6 +45,7 @@ public class PlatformRuntimeService {
         result.put("workspaceRoot", props.getWorkspaceRoot());
         result.put("staticRoot", props.getStaticRoot());
         result.put("dataRoot", props.getDataRoot());
+        result.put("artifactRoot", props.getArtifactRoot());
         result.put("nginxConfigFile", props.getNginxConfigFile());
         result.put("tools", tools);
         return result;
