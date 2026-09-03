@@ -67,7 +67,7 @@ onMounted(loadAll)
 
 <template>
   <div class="page-stack">
-    <PageHeader title="流水线与制品" description="FDP 只读取云效 Flow 和 Packages；项目经理继续在 Codeup / Flow 中维护 CI，FDP 后续只消费构建产物并部署到私有云。">
+    <PageHeader title="流水线与制品" description="只读查看云效 Flow 与 Packages。CI 配置仍由项目经理在 Flow 中维护；真正的版本选择和 Linux 部署在“工程制品交付”页面完成。">
       <template #actions><button class="soft-button" :disabled="loading" @click="loadAll"><RefreshCw :size="14" />{{loading?'读取中…':'刷新云效'}}</button></template>
     </PageHeader>
 
@@ -100,7 +100,7 @@ onMounted(loadAll)
       </article>
 
       <article class="panel info-card span-2">
-        <div class="panel-head"><div><h2><Boxes :size="18" /> Packages 通用制品仓库</h2><p>正式工程建议由 Flow 将最终可部署包上传到 GENERIC 制品仓库。</p></div></div>
+        <div class="panel-head"><div><h2><Boxes :size="18" /> Packages 通用制品仓库</h2><p>正式工程由 Flow 将最终可部署包上传到 GENERIC 制品仓库。</p></div></div>
         <div class="table-wrap"><table class="data-table"><thead><tr><th>仓库</th><th>ID</th><th>类型</th><th>模式</th><th>操作</th></tr></thead><tbody>
           <tr v-for="repo in repositories" :key="repo.repoId"><td><strong>{{repo.repoName}}</strong><small style="display:block">{{repo.repoDesc}}</small></td><td><code>{{repo.repoId}}</code></td><td>{{repo.repoType}}</td><td>{{repo.repoCategory}}</td><td><button class="link-button" @click="openRepository(repo)">检索制品</button></td></tr>
         </tbody></table></div>
@@ -113,7 +113,7 @@ onMounted(loadAll)
           <tr v-for="a in artifacts" :key="a.id"><td><strong>{{a.module}}</strong></td><td>{{a.organization||'-'}}</td><td><code>{{a.versions?.[0]?.version||'-'}}</code></td><td>{{time(a.latestUpdate)}}</td></tr>
         </tbody></table></div>
         <div v-if="!artifacts.length" class="empty-state">该仓库暂无匹配制品。</div>
-        <div style="margin-top:12px;font-size:12px;color:#64748b">当前阶段只做读取与检索。下一阶段再增加“选择版本 → 下载制品 → 校验 → 私有云部署”。</div>
+        <div style="margin-top:12px;font-size:12px;color:#64748b">制品发现已经接入部署链路。到“工程制品交付”绑定 Flow + Packages 制品后，可读取成功版本、推荐最新版本并部署到 Linux。</div>
       </article>
     </section>
   </div>
