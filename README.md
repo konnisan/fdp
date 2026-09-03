@@ -1,168 +1,167 @@
 # Financial Delivery Platform (FDP)
 
-FDP 是基于 Codeup 的内部交付与客户预览平台。
+FDP 是基于 Codeup / 云效 Flow 的内部交付与客户预览平台。
 
-研发迭代、正式工程源码和 CI 构建都以 Codeup 为事实源；FDP 的职责是把可交付内容部署到公司私有云，并通过统一 Nginx 入口提供给客户预览。
+研发源码和 CI 构建以 Codeup / Flow 为事实源；FDP 不重复建设 CI，而是把已经可部署的内容交付到公司 Linux 私有云，并通过统一 Nginx 入口提供客户预览。
 
-> 当前确认的架构方向见：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+详细文档：
 
-## 当前确认的两条交付链路
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/PIPELINE_ARTIFACT_DELIVERY.md`](docs/PIPELINE_ARTIFACT_DELIVERY.md)
+
+## 两条交付链路
 
 ### 1. STATIC POC
 
-FS 产出的静态 HTML 本身就是最终可部署内容，因此直接通过 Git 交付。
-
 ```text
 FS
-  ↓
-生成静态 POC HTML
-  ↓
-push 到 Codeup
-  ↓
-FDP git clone / fetch / reset
-  ↓
-/data/fdp/sites
-  ↓
-Nginx
-  ↓
-客户预览
+  -> 生成静态 HTML
+  -> Codeup poc-html
+  -> FDP clone / fetch
+  -> /data/fdp/sites
+  -> Nginx
+  -> 客户预览
 ```
 
-当前用于 FS 与 FDP 联调的 Codeup 仓库：
+FDP 不为 STATIC 执行 npm、Maven 或 Docker build。
+
+当前联调仓库：
 
 ```text
 https://codeup.aliyun.com/6038b0d9eb45243512067136/poc-html.git
 ```
 
-这一链路中：
-
-- FS：生成并上传静态 POC。
-- Codeup：保存 POC 版本。
-- FDP：下载、发布、配置 Nginx、验证并提供预览地址。
-- FDP 不需要为 STATIC 执行 npm、Maven 或 Docker build。
-
-### 2. 正式工程 / Pipeline Artifact
-
-正式工程不再要求 FDP 自己从源码执行完整构建。
-
-项目经理和开发团队自行维护 Codeup Pipeline 中的编译、测试、打包和镜像构建逻辑；FDP 打通 Codeup 工作流，取得成功构建后的产物，再部署到公司私有云。
+### 2. 正式工程 / Flow Packages
 
 ```text
-开发团队
-  ↓
-Codeup Git
-  ↓
-Codeup Pipeline
-  ├── compile
-  ├── test
-  ├── package
-  └── build artifact
-          ↓
-       构建产物
-          ↓
-         FDP
-  ├── 查询成功构建
-  ├── 下载 Artifact
-  ├── 部署到私有云
-  ├── 健康检查
-  └── 配置 Nginx
-          ↓
-       客户预览
+开发人员
+  -> Codeup Git
+  -> Yunxiao Flow
+       - npm build
+       - mvn package
+       - test
+       - docker build backend
+       - docker save backend image
+       - package frontend dist
+       - assemble FDP delivery bundle
+  -> Packages GENERIC
+  -> FDP
+       - 查询成功 Flow Run
+       - 推荐最新成功制品版本
+       - 允许选择历史成功版本
+       - 下载 / 校验制品
+       - 前端静态发布
+       - docker load 后端镜像
+       - 停旧 / 启新 backend container
+       - health check
+       - Nginx route
+  -> 客户预览
 ```
 
-因此长期职责边界是：
+职责边界：
 
 ```text
-Codeup Pipeline = CI / 构建
-FDP             = Delivery / 私有云部署
+Codeup / Flow = source + CI / build
+Packages      = artifact storage / versioning
+FDP           = CD / private-cloud delivery
 ```
 
-FDP 不应继续发展成第二套 CI 系统。
+FDP 正式工程主线不执行 `npm build`、`mvn package` 或 `docker build`。
 
-## 正式工程的产物方向
+## 正式工程运行模型
 
-FDP 后续优先支持“已经可以部署”的 Pipeline Artifact：
+当前是单 Linux Server，不引入 Kubernetes。
 
 ```text
-PIPELINE_ARTIFACT
-  ├── DOCKER_IMAGE_TAR
-  ├── JAR
-  └── ARCHIVE
+Linux Server
+├── FDP
+├── Nginx
+├── Shared MySQL
+├── project-a backend Docker
+├── project-b backend Docker
+└── /data/fdp/sites/<project>/   <- 各工程 frontend dist
 ```
 
-容器项目第一阶段建议由 Codeup Pipeline 产生镜像 tar：
+正式项目的 Vue 前端已经是静态资源，因此直接由宿主机 Nginx 提供；只有后端应用运行在 Docker。
+
+后端端口只绑定本机：
 
 ```text
-Codeup Pipeline
-  ↓
-docker build
-  ↓
-docker save app:<commit> -o app-image.tar
-  ↓
-Pipeline Artifact
+127.0.0.1:<hostPort> -> container:<containerPort>
 ```
 
-FDP：
+客户只访问 FDP 管理的统一 Nginx 入口。
+
+## V1 正式工程制品约定
+
+Flow 向 Packages GENERIC 上传一个 `.tgz` / `.tar.gz` 交付包。解包后：
 
 ```text
-下载 app-image.tar
-  ↓
-docker load
-  ↓
-替换私有云容器
-  ↓
-127.0.0.1:<hostPort>
-  ↓
-Nginx
-  ↓
-客户预览
+fdp-manifest.yml
+frontend.tar.gz
+backend-image.tar
+database/                 # 可选；V1 暂不自动执行 migration
 ```
 
-未来如果建设私有镜像仓库，可以升级为：
+示例 manifest：
+
+```yaml
+app:
+  code: financial-system
+
+frontend:
+  archive: frontend.tar.gz
+  root: .
+
+backend:
+  imageArchive: backend-image.tar
+  image: financial-system-backend:20260903-007
+  containerPort: 8080
+  healthCheck: /actuator/health
+
+database:
+  migrations: database/
+```
+
+应用自身参数由项目仓库 / Flow 制品声明；环境参数在 FDP 中配置：
 
 ```text
-Codeup Pipeline -> Private Registry -> FDP docker pull -> Deploy
+pipelineId
+packageRepoId
+artifactName
+previewPath
+hostPort
+containerName
+envFile
 ```
 
-## 当前实现与目标方向
-
-当前代码已经存在 `STATIC` 和本机 `CONTAINER` Docker build 能力。
-
-其中：
-
-- `STATIC` 是当前主线能力，继续使用。
-- 本机 `CONTAINER` 构建可以暂时作为兼容能力保留。
-- 新的正式工程主线不再继续强化本机 Docker build，而是转向 `Codeup Pipeline -> Artifact -> FDP Deploy`。
-
-## Codeup 凭据
-
-FDP 已支持可复用 `source_credential`：
+`envFile` 推荐放在 Linux，例如：
 
 ```text
-Codeup Account
-    │
-    └── Source Credential
-          ├── HTTPS Clone Username
-          └── Personal Access Token
-                 │
-                 ├── Project A
-                 ├── Project B
-                 └── Project C
+/data/fdp/env/financial-system.env
 ```
 
-Token 不写入 Git URL，也不应出现在部署日志中。HTTPS Git 使用临时 `GIT_ASKPASS` 注入凭据。
+用于 MySQL 地址、数据库名、用户名、密码等部署环境信息，不进入源码或 Packages。
 
-首次保存凭据前需要固定的 AES-GCM 主密钥：
+## Yunxiao 配置
 
-```bash
-export FDP_CREDENTIAL_KEY="$(openssl rand -base64 32)"
+`backend/.env`：
+
+```properties
+FDP_YUNXIAO_ENABLED=true
+FDP_YUNXIAO_DOMAIN=openapi-rdc.aliyuncs.com
+FDP_YUNXIAO_ORGANIZATION_ID=6038b0d9eb45243512067136
+FDP_YUNXIAO_TOKEN=
+FDP_YUNXIAO_PAGE_SIZE=30
 ```
 
-该值一旦用于加密 Codeup Token，就必须长期保持稳定，否则已有 Token 将无法解密。
+`FDP_YUNXIAO_TOKEN` 留空时会复用 `FDP_STATIC_CODEUP_TOKEN`。该 PAT 需要 Flow / Packages 读取权限。
+
+不要把 Token 写入 Git URL 或提交到仓库。
 
 ## 私有云运行环境
 
-当前单机阶段需要：
+Linux 主机当前需要：
 
 ```text
 Git
@@ -170,90 +169,80 @@ Docker Engine
 Nginx
 rsync
 curl
+tar
 Java 17+
 MySQL
 ```
 
-业务项目的 Node.js、Maven、Python 等构建环境原则上应由 Codeup Pipeline 提供，而不是继续堆到 FDP 部署服务器上。
-
-推荐 FDP 运行目录：
+推荐运行目录：
 
 ```text
 /data/fdp/
 ├── app.jar
 ├── logs/
 ├── workspaces/
+├── artifacts/
 ├── sites/
 ├── data/
+├── env/
 └── runtime/nginx/
 ```
 
-当前服务器端口规划：
+推荐环境变量：
+
+```properties
+FDP_WORKSPACE_ROOT=/data/fdp/workspaces
+FDP_ARTIFACT_ROOT=/data/fdp/artifacts
+FDP_STATIC_ROOT=/data/fdp/sites
+FDP_DATA_ROOT=/data/fdp/data
+FDP_PUBLIC_PORT=3005
+FDP_NGINX_CONFIG_FILE=/data/fdp/runtime/nginx/fdp-routes.conf
+```
+
+当前端口规划：
 
 ```text
 3003 -> FDP 管理前端
-3004 -> FDP 后端
-3005 -> FDP 客户预览统一入口
+3004 -> FDP Spring Boot 后端
+3005 -> 客户预览统一 Nginx 入口
 ```
 
-## 数据库
+## 数据库升级
 
-全新环境使用最新全量 SQL：
+全新环境：
 
 ```bash
 mysql -uroot -p < sql/fdp.sql
 ```
 
-不要在全新数据库上重复执行旧版本 migration。
-
-## 本地开发
-
-后端：
+已有 FDP 数据库升级到 Pipeline Artifact Delivery：
 
 ```bash
-cd backend
-mvn spring-boot:run
+mysql -uroot -p fdp < sql/migration_v6_pipeline_artifact_delivery.sql
 ```
 
-前端：
+已有数据库只执行 V6 migration，不要重新执行全量 `fdp.sql`。
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-默认：
+## 页面
 
 ```text
-FDP_EXECUTION_ENABLED=false
+静态预览       -> FS / Codeup STATIC
+流水线与制品   -> 只读查看 Flow / Packages
+工程制品交付   -> 绑定 Flow + Packages、选择版本、部署到 Linux
+容器项目       -> 旧本机构建兼容模式
+访问入口       -> 客户访问入口
+部署中心       -> 旧 deployment task 查看
+运行环境       -> Linux / Docker / Nginx / rsync / curl 状态
 ```
-
-此时 Git / Docker / Shell 发布步骤为 DRY-RUN。
-
-## 当前实施顺序
-
-先把最短链路跑通，再逐步扩展：
-
-```text
-1. FS -> Codeup 静态 HTML
-2. FDP 从 Codeup 拉取 STATIC
-3. FDP -> Nginx -> 客户预览
-4. Codeup Pipeline API 联调
-5. 查询成功构建
-6. 下载 Pipeline Artifact
-7. FDP 部署正式工程到私有云
-8. 最后再考虑 Webhook / 自动触发
-```
-
-当前阶段的重点是第 1～3 步。
 
 ## 当前不做
 
 - Kubernetes / Helm
 - 多服务器调度
-- FDP 内部通用 CI Pipeline 设计器
-- 在线源码编辑
-- 替代 Codeup 的构建系统
+- 蓝绿发布 / 零停机
+- FDP 内正式工程 CI
+- 前端 Docker
+- 自动数据库 migration / rollback
+- Harbor / ACR 镜像 pull
 
-后续如果私有云从单机扩展到多节点，再评估 Kubernetes 等运行时编排能力。
+当单服务器模式不能满足需求时，再评估 Kubernetes、多节点调度和私有镜像仓库。
