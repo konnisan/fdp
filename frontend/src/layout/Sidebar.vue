@@ -1,11 +1,11 @@
 <script setup>
-import { Boxes, ChevronRight, Database, FileCode2, FolderKanban, LayoutDashboard, Monitor, Workflow } from 'lucide-vue-next'
+import { Boxes, ChevronRight, Database, FileCode2, FolderKanban, LayoutDashboard, Monitor, Rocket, Workflow } from 'lucide-vue-next'
 
 const props=defineProps({activePath:{type:String,required:true}})
 const emit=defineEmits(['navigate'])
 const groups=[
   {label:'',items:[{label:'平台首页',path:'/',icon:LayoutDashboard}]},
-  {label:'交付管理',items:[{label:'静态预览',path:'/static-previews',icon:FileCode2},{label:'流水线与制品',path:'/yunxiao-artifacts',icon:Boxes},{label:'容器项目',path:'/poc-projects',icon:FolderKanban},{label:'访问入口',path:'/previews',icon:Monitor}]},
+  {label:'交付管理',items:[{label:'静态预览',path:'/static-previews',icon:FileCode2},{label:'流水线与制品',path:'/yunxiao-artifacts',icon:Boxes},{label:'工程制品交付',path:'/artifact-delivery',icon:Rocket},{label:'容器项目',path:'/poc-projects',icon:FolderKanban},{label:'访问入口',path:'/previews',icon:Monitor}]},
   {label:'发布运维',items:[{label:'部署中心',path:'/deployments',icon:Workflow},{label:'运行环境',path:'/runtime',icon:Database}]}
 ]
 function active(path){if(path==='/')return props.activePath==='/';return props.activePath===path||props.activePath.startsWith(path+'/')}
