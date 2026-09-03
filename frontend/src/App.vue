@@ -5,6 +5,7 @@ import HomeView from './views/HomeView.vue'
 import ProjectsView from './views/ProjectsView.vue'
 import StaticCatalogView from './views/StaticCatalogView.vue'
 import YunxiaoArtifactsView from './views/YunxiaoArtifactsView.vue'
+import ArtifactDeliveryView from './views/ArtifactDeliveryView.vue'
 import ProjectDetailView from './views/ProjectDetailView.vue'
 import DeploymentsView from './views/DeploymentsView.vue'
 import PreviewsView from './views/PreviewsView.vue'
@@ -18,6 +19,7 @@ const route=computed(()=>{
   if(/^\/poc-projects\/\d+$/.test(p))return{component:ProjectDetailView,projectId:Number(p.split('/').pop()),title:'交付项目详情'}
   if(p==='/static-previews')return{component:StaticCatalogView,title:'静态预览'}
   if(p==='/yunxiao-artifacts')return{component:YunxiaoArtifactsView,title:'流水线与制品'}
+  if(p==='/artifact-delivery')return{component:ArtifactDeliveryView,title:'工程制品交付'}
   if(p==='/poc-projects')return{component:ProjectsView,title:'容器项目'}
   if(p==='/deployments')return{component:DeploymentsView,title:'部署中心'}
   if(p==='/previews')return{component:PreviewsView,title:'访问入口'}
