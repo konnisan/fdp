@@ -10,6 +10,7 @@ public class RuntimeProperties {
     private String workspaceRoot;
     private String staticRoot;
     private String dataRoot;
+    private String artifactRoot;
     private String nginxConfigFile;
     private int nginxPublicPort = 8090;
     private String nginxReloadCommand;
@@ -22,6 +23,8 @@ public class RuntimeProperties {
     public void setStaticRoot(String staticRoot) { this.staticRoot = staticRoot; }
     public String getDataRoot() { return dataRoot; }
     public void setDataRoot(String dataRoot) { this.dataRoot = dataRoot; }
+    public String getArtifactRoot() { return artifactRoot; }
+    public void setArtifactRoot(String artifactRoot) { this.artifactRoot = artifactRoot; }
     public String getNginxConfigFile() { return nginxConfigFile; }
     public void setNginxConfigFile(String nginxConfigFile) { this.nginxConfigFile = nginxConfigFile; }
     public int getNginxPublicPort() { return nginxPublicPort; }
