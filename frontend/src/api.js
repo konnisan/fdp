@@ -29,6 +29,12 @@ export const getYunxiaoPipelineRun=(pipelineId,runId)=>http.get(`/yunxiao/pipeli
 export const listYunxiaoRepositories=params=>http.get('/yunxiao/packages/repositories',{params}).then(r=>r.data)
 export const listYunxiaoArtifacts=(repoId,params)=>http.get(`/yunxiao/packages/repositories/${repoId}/artifacts`,{params}).then(r=>r.data)
 
+export const listArtifactDeliveryProjects=()=>http.get('/artifact-delivery/projects').then(r=>r.data)
+export const createArtifactDeliveryProject=data=>http.post('/artifact-delivery/projects',data).then(r=>r.data)
+export const listArtifactDeliveryReleases=id=>http.get(`/artifact-delivery/projects/${id}/releases`).then(r=>r.data)
+export const listArtifactDeliveryHistory=id=>http.get(`/artifact-delivery/projects/${id}/history`).then(r=>r.data)
+export const deployArtifactRelease=(id,runId)=>http.post(`/artifact-delivery/projects/${id}/deploy`,runId?{runId}:{}).then(r=>r.data)
+
 export const listSourceCredentials=()=>http.get('/source-credentials').then(r=>r.data)
 export const createSourceCredential=data=>http.post('/source-credentials',data).then(r=>r.data)
 export const updateSourceCredential=(id,data)=>http.put(`/source-credentials/${id}`,data).then(r=>r.data)
