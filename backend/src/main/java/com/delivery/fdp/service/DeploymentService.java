@@ -2,6 +2,7 @@ package com.delivery.fdp.service;
 
 import com.delivery.fdp.config.RuntimeProperties;
 import com.delivery.fdp.model.PocProject;
+import com.delivery.fdp.repository.ArtifactDeliveryRepository;
 import com.delivery.fdp.repository.DeploymentRepository;
 import com.delivery.fdp.repository.PocProjectRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -21,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DeploymentService {
     private final RuntimeProperties props;
     private final PocProjectRepository projects;
+    private final ArtifactDeliveryRepository artifactProjects;
     private final DeploymentRepository deployments;
     private final CommandExecutor exec;
     private final GitAuthenticationService gitAuth;
@@ -29,12 +31,14 @@ public class DeploymentService {
 
     public DeploymentService(RuntimeProperties props,
                              PocProjectRepository projects,
+                             ArtifactDeliveryRepository artifactProjects,
                              DeploymentRepository deployments,
                              CommandExecutor exec,
                              GitAuthenticationService gitAuth,
                              @Qualifier("deploymentTaskExecutor") TaskExecutor deploymentTaskExecutor) {
         this.props = props;
         this.projects = projects;
+        this.artifactProjects = artifactProjects;
         this.deployments = deployments;
         this.exec = exec;
         this.gitAuth = gitAuth;
@@ -240,6 +244,23 @@ public class DeploymentService {
                             .append("    }\n\n");
                 }
             }
+
+            for (ArtifactDeliveryRepository.Project project : artifactProjects.findRouted()) {
+                String preview = project.previewPath();
+                config.append("    # Pipeline artifact project: ").append(project.projectCode()).append("\n")
+                        .append("    location ^~ ").append(preview).append("/api/ {\n")
+                        .append("        proxy_pass http://127.0.0.1:").append(project.hostPort()).append("/api/;\n")
+                        .append("        proxy_http_version 1.1;\n")
+                        .append("        proxy_set_header Host $host;\n")
+                        .append("        proxy_set_header X-Real-IP $remote_addr;\n")
+                        .append("        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n")
+                        .append("    }\n\n")
+                        .append("    location ^~ ").append(preview).append("/ {\n")
+                        .append("        root ").append(staticRoot.toString().replace("\\", "/")).append(";\n")
+                        .append("        try_files $uri $uri/ ").append(preview).append("/index.html;\n")
+                        .append("    }\n\n");
+            }
+
             config.append("}\n");
             Path file = Path.of(props.getNginxConfigFile()).toAbsolutePath().normalize();
             if (file.getParent() != null) Files.createDirectories(file.getParent());
