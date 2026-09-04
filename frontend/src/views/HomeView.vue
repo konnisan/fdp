@@ -36,7 +36,6 @@ onMounted(load)
   <div class="page-stack restructure-page">
     <section class="overview-hero panel">
       <div>
-        <span class="eyebrow">DELIVERY CONTROL PLANE</span>
         <h1>平台总览</h1>
         <p>Codeup / Flow / Packages 负责源码与构建，FDP 统一接管静态发布、Docker 运行单元、路由、数据卷与部署记录。</p>
       </div>
