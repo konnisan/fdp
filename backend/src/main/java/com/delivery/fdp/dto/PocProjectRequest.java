@@ -2,6 +2,7 @@ package com.delivery.fdp.dto;
 
 public class PocProjectRequest {
     private String projectCode, projectName, gitUrl, gitBranch = "develop", projectType;
+    private String deploymentProfile;
     private Long credentialId;
     private String projectDirectory = ".", buildCommand, buildOutput = "dist";
     private String dockerfilePath = "Dockerfile", dockerBuildContext = ".", imageName, containerName;
@@ -15,6 +16,7 @@ public class PocProjectRequest {
     public String getGitBranch(){return gitBranch;} public void setGitBranch(String v){gitBranch=v;}
     public Long getCredentialId(){return credentialId;} public void setCredentialId(Long v){credentialId=v;}
     public String getProjectType(){return projectType;} public void setProjectType(String v){projectType=v;}
+    public String getDeploymentProfile(){return deploymentProfile;} public void setDeploymentProfile(String v){deploymentProfile=v;}
     public String getProjectDirectory(){return projectDirectory;} public void setProjectDirectory(String v){projectDirectory=v;}
     public String getBuildCommand(){return buildCommand;} public void setBuildCommand(String v){buildCommand=v;}
     public String getBuildOutput(){return buildOutput;} public void setBuildOutput(String v){buildOutput=v;}
