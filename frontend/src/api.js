@@ -34,6 +34,12 @@ export const createArtifactDeliveryProject=data=>http.post('/artifact-delivery/p
 export const listArtifactDeliveryReleases=id=>http.get(`/artifact-delivery/projects/${id}/releases`).then(r=>r.data)
 export const listArtifactDeliveryHistory=id=>http.get(`/artifact-delivery/projects/${id}/history`).then(r=>r.data)
 export const deployArtifactRelease=(id,runId)=>http.post(`/artifact-delivery/projects/${id}/deploy`,runId?{runId}:{}).then(r=>r.data)
+export const getArtifactRuntime=id=>http.get(`/artifact-delivery/projects/${id}/runtime`).then(r=>r.data)
+export const getArtifactDeploymentPlan=id=>http.get(`/artifact-delivery/projects/${id}/deployment-plan`).then(r=>r.data)
+export const getArtifactRuntimeLogs=id=>http.get(`/artifact-delivery/projects/${id}/runtime-logs`).then(r=>r.data.content)
+export const restartArtifactProject=id=>http.post(`/artifact-delivery/projects/${id}/restart`).then(r=>r.data)
+export const stopArtifactProject=id=>http.post(`/artifact-delivery/projects/${id}/stop`).then(r=>r.data)
+export const removeArtifactContainer=id=>http.post(`/artifact-delivery/projects/${id}/remove-container`).then(r=>r.data)
 
 export const listSourceCredentials=()=>http.get('/source-credentials').then(r=>r.data)
 export const createSourceCredential=data=>http.post('/source-credentials',data).then(r=>r.data)
