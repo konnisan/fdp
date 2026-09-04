@@ -55,6 +55,23 @@ public class YunxiaoOpenApiService {
         return getList(uri.build().encode().toUri());
     }
 
+    public Map<String, Object> createPipelineRun(String pipelineId, String params) {
+        validate();
+        requireId(pipelineId, "pipelineId");
+        URI uri = base("/oapi/v1/flow/organizations/" + segment(props.getOrganizationId())
+                + "/pipelines/" + segment(pipelineId) + "/runs")
+                .build().encode().toUri();
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (StringUtils.hasText(params)) body.put("params", params.trim());
+        Object runId = postObject(uri, body);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("pipelineId", pipelineId);
+        result.put("runId", runId == null ? "" : String.valueOf(runId));
+        result.put("status", "QUEUED");
+        return result;
+    }
+
     public List<Map<String, Object>> pipelineRuns(String pipelineId,
                                                   String status,
                                                   Integer page,
@@ -275,6 +292,20 @@ public class YunxiaoOpenApiService {
                     .retrieve()
                     .body(MAP);
             return body == null ? Map.of() : body;
+        } catch (RestClientResponseException e) {
+            throw apiFailure(e);
+        }
+    }
+
+    private Object postObject(URI uri, Object body) {
+        try {
+            return http.post()
+                    .uri(uri)
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                    .header("x-yunxiao-token", props.getToken())
+                    .body(body)
+                    .retrieve()
+                    .body(Object.class);
         } catch (RestClientResponseException e) {
             throw apiFailure(e);
         }
