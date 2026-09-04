@@ -24,6 +24,7 @@ export const activateStaticProject=projectName=>http.post('/static-catalog/activ
 
 export const getYunxiaoStatus=()=>http.get('/yunxiao/status').then(r=>r.data)
 export const listYunxiaoPipelines=params=>http.get('/yunxiao/pipelines',{params}).then(r=>r.data)
+export const runYunxiaoPipeline=(pipelineId,data={})=>http.post(`/yunxiao/pipelines/${pipelineId}/runs`,data).then(r=>r.data)
 export const listYunxiaoPipelineRuns=(pipelineId,params)=>http.get(`/yunxiao/pipelines/${pipelineId}/runs`,{params}).then(r=>r.data)
 export const getYunxiaoPipelineRun=(pipelineId,runId)=>http.get(`/yunxiao/pipelines/${pipelineId}/runs/${runId}`).then(r=>r.data)
 export const listYunxiaoRepositories=params=>http.get('/yunxiao/packages/repositories',{params}).then(r=>r.data)
