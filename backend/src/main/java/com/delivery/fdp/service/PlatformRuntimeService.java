@@ -4,6 +4,7 @@ import com.delivery.fdp.config.RuntimeProperties;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,8 +48,18 @@ public class PlatformRuntimeService {
         result.put("dataRoot", props.getDataRoot());
         result.put("artifactRoot", props.getArtifactRoot());
         result.put("nginxConfigFile", props.getNginxConfigFile());
+        result.put("resolvedWorkspaceRoot", absolute(props.getWorkspaceRoot()));
+        result.put("resolvedStaticRoot", absolute(props.getStaticRoot()));
+        result.put("resolvedDataRoot", absolute(props.getDataRoot()));
+        result.put("resolvedArtifactRoot", absolute(props.getArtifactRoot()));
+        result.put("resolvedNginxConfigFile", absolute(props.getNginxConfigFile()));
         result.put("tools", tools);
         return result;
+    }
+
+    private String absolute(String value) {
+        if (value == null || value.isBlank()) return "";
+        return Path.of(value).toAbsolutePath().normalize().toString();
     }
 
     private Map<String, Object> tool(String name, String command, String argument, boolean required) {
