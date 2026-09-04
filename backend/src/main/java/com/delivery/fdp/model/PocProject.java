@@ -11,6 +11,7 @@ public class PocProject {
     private Long credentialId;
     private String credentialName;
     private String projectType;
+    private String deploymentProfile;
     private String projectDirectory;
     private String buildCommand;
     private String buildOutput;
@@ -39,6 +40,7 @@ public class PocProject {
     public Long getCredentialId(){return credentialId;} public void setCredentialId(Long v){credentialId=v;}
     public String getCredentialName(){return credentialName;} public void setCredentialName(String v){credentialName=v;}
     public String getProjectType(){return projectType;} public void setProjectType(String v){projectType=v;}
+    public String getDeploymentProfile(){return deploymentProfile;} public void setDeploymentProfile(String v){deploymentProfile=v;}
     public String getProjectDirectory(){return projectDirectory;} public void setProjectDirectory(String v){projectDirectory=v;}
     public String getBuildCommand(){return buildCommand;} public void setBuildCommand(String v){buildCommand=v;}
     public String getBuildOutput(){return buildOutput;} public void setBuildOutput(String v){buildOutput=v;}
