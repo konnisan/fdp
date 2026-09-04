@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS delivery_project (
   git_url VARCHAR(512) NOT NULL,
   git_branch VARCHAR(128) NOT NULL DEFAULT 'develop',
   credential_id BIGINT NULL,
-  project_type VARCHAR(32) NOT NULL COMMENT 'STATIC or CONTAINER',
+  project_type VARCHAR(32) NOT NULL COMMENT 'STATIC or CONTAINER execution mode',
+  deployment_profile VARCHAR(32) NOT NULL DEFAULT 'LIGHTWEIGHT' COMMENT 'STATIC / LIGHTWEIGHT / CUSTOM',
   project_directory VARCHAR(512) NOT NULL DEFAULT '.',
   build_command VARCHAR(512) NULL COMMENT 'STATIC build only',
   build_output VARCHAR(255) NOT NULL DEFAULT 'dist',
@@ -45,7 +46,8 @@ CREATE TABLE IF NOT EXISTS delivery_project (
   UNIQUE KEY uk_delivery_project_code (project_code),
   UNIQUE KEY uk_delivery_project_preview_path (preview_path),
   UNIQUE KEY uk_delivery_project_host_port (host_port),
-  KEY idx_delivery_project_credential (credential_id)
+  KEY idx_delivery_project_credential (credential_id),
+  KEY idx_delivery_project_profile (deployment_profile)
 );
 
 CREATE TABLE IF NOT EXISTS deployment_task (
