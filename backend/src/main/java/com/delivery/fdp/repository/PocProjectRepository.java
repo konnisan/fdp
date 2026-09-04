@@ -27,6 +27,7 @@ public class PocProjectRepository {
         p.setCredentialId(rs.wasNull() ? null : credentialId);
         p.setCredentialName(rs.getString("credential_name"));
         p.setProjectType(rs.getString("project_type"));
+        p.setDeploymentProfile(rs.getString("deployment_profile"));
         p.setProjectDirectory(rs.getString("project_directory"));
         p.setBuildCommand(rs.getString("build_command"));
         p.setBuildOutput(rs.getString("build_output"));
@@ -64,7 +65,7 @@ public class PocProjectRepository {
         KeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(
-                    "INSERT INTO delivery_project(project_code,project_name,git_url,git_branch,credential_id,project_type,project_directory,build_command,build_output,dockerfile_path,docker_build_context,image_name,container_name,host_port,container_port,cpu_limit,memory_limit,host_data_path,container_data_path,health_check_path,preview_path,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DRAFT')",
+                    "INSERT INTO delivery_project(project_code,project_name,git_url,git_branch,credential_id,project_type,deployment_profile,project_directory,build_command,build_output,dockerfile_path,docker_build_context,image_name,container_name,host_port,container_port,cpu_limit,memory_limit,host_data_path,container_data_path,health_check_path,preview_path,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DRAFT')",
                     Statement.RETURN_GENERATED_KEYS);
             bind(ps, r);
             return ps;
@@ -74,8 +75,8 @@ public class PocProjectRepository {
     }
 
     public void update(Long id, PocProjectRequest r){
-        jdbc.update("UPDATE delivery_project SET project_code=?,project_name=?,git_url=?,git_branch=?,credential_id=?,project_type=?,project_directory=?,build_command=?,build_output=?,dockerfile_path=?,docker_build_context=?,image_name=?,container_name=?,host_port=?,container_port=?,cpu_limit=?,memory_limit=?,host_data_path=?,container_data_path=?,health_check_path=?,preview_path=?,update_time=NOW() WHERE id=?",
-                ps -> { bind(ps, r); ps.setLong(22, id); });
+        jdbc.update("UPDATE delivery_project SET project_code=?,project_name=?,git_url=?,git_branch=?,credential_id=?,project_type=?,deployment_profile=?,project_directory=?,build_command=?,build_output=?,dockerfile_path=?,docker_build_context=?,image_name=?,container_name=?,host_port=?,container_port=?,cpu_limit=?,memory_limit=?,host_data_path=?,container_data_path=?,health_check_path=?,preview_path=?,update_time=NOW() WHERE id=?",
+                ps -> { bind(ps, r); ps.setLong(23, id); });
     }
 
     private void bind(PreparedStatement ps, PocProjectRequest r) throws java.sql.SQLException {
@@ -85,21 +86,22 @@ public class PocProjectRepository {
         ps.setString(4, r.getGitBranch());
         if (r.getCredentialId() == null) ps.setNull(5, java.sql.Types.BIGINT); else ps.setLong(5, r.getCredentialId());
         ps.setString(6, r.getProjectType());
-        ps.setString(7, r.getProjectDirectory());
-        ps.setString(8, r.getBuildCommand());
-        ps.setString(9, r.getBuildOutput());
-        ps.setString(10, r.getDockerfilePath());
-        ps.setString(11, r.getDockerBuildContext());
-        ps.setString(12, r.getImageName());
-        ps.setString(13, r.getContainerName());
-        if (r.getHostPort() == null) ps.setNull(14, java.sql.Types.INTEGER); else ps.setInt(14, r.getHostPort());
-        if (r.getContainerPort() == null) ps.setNull(15, java.sql.Types.INTEGER); else ps.setInt(15, r.getContainerPort());
-        ps.setString(16, r.getCpuLimit());
-        ps.setString(17, r.getMemoryLimit());
-        ps.setString(18, r.getHostDataPath());
-        ps.setString(19, r.getContainerDataPath());
-        ps.setString(20, r.getHealthCheckPath());
-        ps.setString(21, r.getPreviewPath());
+        ps.setString(7, r.getDeploymentProfile());
+        ps.setString(8, r.getProjectDirectory());
+        ps.setString(9, r.getBuildCommand());
+        ps.setString(10, r.getBuildOutput());
+        ps.setString(11, r.getDockerfilePath());
+        ps.setString(12, r.getDockerBuildContext());
+        ps.setString(13, r.getImageName());
+        ps.setString(14, r.getContainerName());
+        if (r.getHostPort() == null) ps.setNull(15, java.sql.Types.INTEGER); else ps.setInt(15, r.getHostPort());
+        if (r.getContainerPort() == null) ps.setNull(16, java.sql.Types.INTEGER); else ps.setInt(16, r.getContainerPort());
+        ps.setString(17, r.getCpuLimit());
+        ps.setString(18, r.getMemoryLimit());
+        ps.setString(19, r.getHostDataPath());
+        ps.setString(20, r.getContainerDataPath());
+        ps.setString(21, r.getHealthCheckPath());
+        ps.setString(22, r.getPreviewPath());
     }
 
     public void delete(Long id){jdbc.update("DELETE FROM delivery_project WHERE id=?", id);}
