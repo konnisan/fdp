@@ -1,10 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { ExternalLink, FolderOpen, Hammer, RefreshCw, Search } from 'lucide-vue-next'
+import { ExternalLink, FolderOpen, RefreshCw, Search } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import { getStaticCatalog, refreshStaticCatalog } from '../api'
 
-const emit=defineEmits(['navigate'])
 const catalog=ref({projects:[]})
 const keyword=ref('')
 const loading=ref(true)
@@ -38,22 +37,12 @@ async function refresh(){
   finally{refreshing.value=false}
 }
 
-function buildFrom(item){
-  sessionStorage.setItem('fdp-build-from-preview',JSON.stringify({
-    name:item.name,
-    indexPath:item.indexPath||'',
-    previewUrl:previewUrl(item),
-    updatedAt:item.updatedAt||null
-  }))
-  emit('navigate','/projects/new')
-}
-
 onMounted(load)
 </script>
 
 <template>
   <div class="page-stack">
-    <PageHeader title="静态 POC" description="STATIC POC 固定存放在原有 Codeup 产物目录中。FDP 不再复制或切换“当前项目”，每个 index.html 都直接通过 FDP 自己的网址预览；确认后再基于该预览继续构建。">
+    <PageHeader title="静态 POC" description="STATIC POC 已经由上游系统生成并固定存放在原有 Codeup 产物目录中。FDP 只负责同步、识别和对外预览，不负责在这里重新构建项目。">
       <template #actions>
         <button class="primary-button" :disabled="refreshing" @click="refresh"><RefreshCw :size="15" />{{refreshing?'同步中…':'刷新 Codeup'}}</button>
       </template>
@@ -66,7 +55,7 @@ onMounted(load)
         <div>
           <div style="font-size:13px;color:#64748b;margin-bottom:5px">POC 产物固定来源</div>
           <div style="font-weight:600">{{catalog.gitUrl||'尚未配置 FDP_STATIC_CODEUP_GIT_URL'}}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:4px">Branch: {{catalog.branch||'main'}} · 原有目录结构保持不变 · 预览使用当前 FDP 网址/端口</div>
+          <div style="font-size:12px;color:#64748b;margin-top:4px">Branch: {{catalog.branch||'main'}} · 原有目录结构保持不变 · 每个 POC 直接通过当前 FDP 网址/端口访问</div>
         </div>
         <span class="status-text" :class="catalog.configured?'running':'stopped'"><i></i>{{catalog.configured?'CONFIGURED':'NOT CONFIGURED'}}</span>
       </div>
@@ -91,12 +80,7 @@ onMounted(load)
               <td><code>{{item.indexPath}}</code></td>
               <td>{{item.updatedAt?new Date(item.updatedAt).toLocaleString():'-'}}</td>
               <td><code>/api/poc-preview/{{item.name}}/</code></td>
-              <td>
-                <div class="row-actions">
-                  <a class="soft-button" :href="previewUrl(item)" target="_blank">直接预览 <ExternalLink :size="13" /></a>
-                  <button class="primary-button" @click="buildFrom(item)"><Hammer :size="14" />基于此预览构建</button>
-                </div>
-              </td>
+              <td><a class="soft-button" :href="previewUrl(item)" target="_blank">直接预览 <ExternalLink :size="13" /></a></td>
             </tr>
           </tbody>
         </table>
