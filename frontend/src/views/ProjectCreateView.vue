@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ArrowLeft, Box, Boxes, FileCode2, PackageCheck, Save, SlidersHorizontal } from 'lucide-vue-next'
+import { ArrowLeft, Box, Boxes, Eye, FileCode2, PackageCheck, Save, SlidersHorizontal } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import {
   createArtifactDeliveryProject,
@@ -22,6 +22,8 @@ const credentials=ref([])
 const pipelines=ref([])
 const repositories=ref([])
 const artifacts=ref([])
+const previewSeed=ref(null)
+const artifactSeed=ref(null)
 const source=reactive({projectCode:'',projectName:'',gitUrl:'',gitBranch:'main',credentialId:null,projectDirectory:'.',buildCommand:'',buildOutput:'.',dockerfilePath:'Dockerfile',dockerBuildContext:'.',imageName:'',containerName:'',hostPort:3101,containerPort:3000,cpuLimit:'1',memoryLimit:'512m',hostDataPath:'',containerDataPath:'/app/data',healthCheckPath:'',previewPath:''})
 const standard=reactive({projectCode:'',projectName:'',pipelineId:'',pipelineName:'',packageRepoId:'',packageRepoName:'',artifactName:'',previewPath:'',hostPort:3201,containerName:'',envFile:''})
 const profileCards=[
@@ -34,10 +36,11 @@ const isContainer=computed(()=>['LIGHTWEIGHT','CUSTOM'].includes(selectedProfile
 const selectedPipeline=computed(()=>pipelines.value.find(p=>String(p.pipelineId)===String(standard.pipelineId)))
 const selectedRepo=computed(()=>repositories.value.find(r=>String(r.repoId)===String(standard.packageRepoId)))
 function err(e){return e.response?.data?.message||e.message}
+function safeCode(value){return String(value||'').toLowerCase().replace(/[^a-z0-9-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,50)}
 function deriveSource(){const code=source.projectCode.trim();if(!code)return;if(!source.previewPath)source.previewPath=`/${code}`;if(isContainer.value){if(!source.imageName)source.imageName=`fdp/${code}`;if(!source.containerName)source.containerName=`fdp-${code}`;if(selectedProfile.value==='LIGHTWEIGHT'&&!source.hostDataPath){const root=runtime.value?.resolvedDataRoot||'';source.hostDataPath=root?`${root.replace(/[\\/]$/,'')}/${code}`:''}}}
 function deriveStandard(){const code=standard.projectCode.trim();if(!code)return;if(!standard.previewPath)standard.previewPath=`/${code}`;if(!standard.containerName)standard.containerName=`fdp-${code}-backend`}
 function chooseProfile(id){selectedProfile.value=id;error.value='';deriveSource()}
-async function chooseRepo(){artifacts.value=[];standard.packageRepoName=selectedRepo.value?.repoName||'';if(!standard.packageRepoId)return;try{artifacts.value=await listYunxiaoArtifacts(standard.packageRepoId,{repoType:'GENERIC',page:1,perPage:50})}catch(e){error.value=err(e)}}
+async function chooseRepo(){artifacts.value=[];standard.packageRepoName=selectedRepo.value?.repoName||standard.packageRepoName||'';if(!standard.packageRepoId)return;try{artifacts.value=await listYunxiaoArtifacts(standard.packageRepoId,{repoType:'GENERIC',page:1,perPage:50})}catch(e){error.value=err(e)}}
 function choosePipeline(){standard.pipelineName=selectedPipeline.value?.pipelineName||''}
 async function save(){
   saving.value=true;error.value=''
@@ -58,18 +61,49 @@ async function save(){
     emit('navigate',`/projects/source/${created.id}`)
   }catch(e){error.value=err(e)}finally{saving.value=false}
 }
-onMounted(async()=>{try{const [rt,cs,ps,repos]=await Promise.all([getRuntimeStatus(),listSourceCredentials(),listYunxiaoPipelines({page:1,perPage:50}),listYunxiaoRepositories({repoTypes:'GENERIC',page:1,perPage:50})]);runtime.value=rt;credentials.value=cs;pipelines.value=ps;repositories.value=repos}catch(e){error.value=err(e)}})
+function readSeed(key){try{const text=sessionStorage.getItem(key);return text?JSON.parse(text):null}catch{return null}}
+
+onMounted(async()=>{
+  const fromPreview=readSeed('fdp-build-from-preview')
+  const fromArtifact=readSeed('fdp-build-from-artifact')
+  sessionStorage.removeItem('fdp-build-from-preview')
+  sessionStorage.removeItem('fdp-build-from-artifact')
+
+  if(fromArtifact){
+    artifactSeed.value=fromArtifact
+    selectedProfile.value='STANDARD'
+    standard.packageRepoId=String(fromArtifact.repoId||'')
+    standard.packageRepoName=fromArtifact.repoName||''
+    standard.artifactName=fromArtifact.artifactName||''
+  }else if(fromPreview){
+    previewSeed.value=fromPreview
+    selectedProfile.value='LIGHTWEIGHT'
+    source.projectName=fromPreview.name||''
+    standard.projectName=fromPreview.name||''
+    const code=safeCode(fromPreview.name)
+    if(code.length>=2){source.projectCode=code;standard.projectCode=code;deriveSource();deriveStandard()}
+  }
+
+  try{
+    const [rt,cs,ps,repos]=await Promise.all([getRuntimeStatus(),listSourceCredentials(),listYunxiaoPipelines({page:1,perPage:50}),listYunxiaoRepositories({repoTypes:'GENERIC',page:1,perPage:50})])
+    runtime.value=rt;credentials.value=cs;pipelines.value=ps;repositories.value=repos
+    if(previewSeed.value)deriveSource()
+    if(artifactSeed.value&&standard.packageRepoId){const wanted=standard.artifactName;await chooseRepo();standard.artifactName=wanted}
+  }catch(e){error.value=err(e)}
+})
 </script>
 
 <template>
   <div class="page-stack restructure-page">
-    <PageHeader title="新建项目" description="先选择 Deployment Profile，再填写该 Profile 需要的最小部署配置。">
-      <template #actions><button class="soft-button" @click="emit('navigate','/projects')"><ArrowLeft :size="14" />返回项目中心</button></template>
+    <PageHeader title="新建项目" description="从已有预览或已有制品开始，不重复搬运产物；这里只配置下一步如何运行和交付。">
+      <template #actions><button class="soft-button" @click="emit('navigate','/')"><ArrowLeft :size="14" />返回静态预览</button></template>
     </PageHeader>
     <div v-if="error" class="error-banner">{{error}}</div>
+    <div v-if="previewSeed" class="success-banner"><Eye :size="15" />来源预览：<strong>{{previewSeed.name}}</strong> · <code>{{previewSeed.indexPath}}</code>。原 HTML 仍保留在固定 POC 目录中；当前默认进入 LIGHTWEIGHT，你也可以改成 STANDARD / CUSTOM。</div>
+    <div v-if="artifactSeed" class="success-banner"><PackageCheck :size="15" />来源制品：<strong>{{artifactSeed.artifactName}}</strong> · version <code>{{artifactSeed.latestVersion||'-'}}</code>。已自动带入 Packages 仓库和制品名称，只需选择对应 Flow 并补充部署参数。</div>
 
     <section class="panel profile-picker">
-      <div class="panel-head"><div><h2>1. 选择 Deployment Profile</h2><p>Profile 只是默认模板；底层仍使用项目、制品、运行单元、路由和数据配置。</p></div></div>
+      <div class="panel-head"><div><h2>1. 选择 Deployment Profile</h2><p>已有纯 HTML 只需要在“静态预览”直接查看；需要继续开发/部署时，再选择后续 Profile。</p></div></div>
       <div class="profile-create-grid">
         <button v-for="card in profileCards" :key="card.id" type="button" class="profile-create-card" :class="{selected:selectedProfile===card.id}" @click="chooseProfile(card.id)">
           <span class="profile-create-icon"><component :is="card.icon" :size="22" /></span>
@@ -79,7 +113,7 @@ onMounted(async()=>{try{const [rt,cs,ps,repos]=await Promise.all([getRuntimeStat
     </section>
 
     <form class="panel project-create-form" @submit.prevent="save">
-      <div class="panel-head"><div><h2>2. 配置 {{selectedProfile}}</h2><p v-if="selectedProfile==='STANDARD'">正式工程从 Flow / Packages 获取制品；FDP 不在部署服务器重新编译源码。</p><p v-else-if="selectedProfile==='STATIC'">静态 POC 从 Codeup 拉取已经生成的 HTML，并发布到 Nginx。</p><p v-else>LIGHTWEIGHT / CUSTOM 当前 V1 延续 Codeup + Docker 单运行单元模式，Windows 开发环境默认 DRY-RUN。</p></div><span class="tag">{{runtime?.executionMode||'检测中'}}</span></div>
+      <div class="panel-head"><div><h2>2. 配置 {{selectedProfile}}</h2><p v-if="selectedProfile==='STANDARD'">正式工程从 Flow / Packages 获取制品；FDP 不在部署服务器重新编译源码。</p><p v-else-if="selectedProfile==='STATIC'">通常不需要新建 STATIC：固定 POC 仓库里的 HTML 已经可以直接预览。只有其他独立静态源码项目才使用这里。</p><p v-else>LIGHTWEIGHT / CUSTOM 使用项目自己的 Docker 运行环境；Windows 开发环境默认 DRY-RUN。</p></div><span class="tag">{{runtime?.executionMode||'检测中'}}</span></div>
 
       <div v-if="selectedProfile!=='STANDARD'" class="form-grid restructure-form-grid">
         <label>项目编码 *<input v-model="source.projectCode" placeholder="customer-poc" @blur="deriveSource" /></label>
