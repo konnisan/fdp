@@ -33,6 +33,12 @@ public class ProjectService {
         if(r.getGitUrl()!=null)r.setGitUrl(r.getGitUrl().trim());
         if(!StringUtils.hasText(r.getGitBranch()))r.setGitBranch("develop");
         if(r.getProjectType()!=null)r.setProjectType(r.getProjectType().trim().toUpperCase(Locale.ROOT));
+        if(r.getDeploymentProfile()!=null)r.setDeploymentProfile(r.getDeploymentProfile().trim().toUpperCase(Locale.ROOT));
+        if(!StringUtils.hasText(r.getDeploymentProfile())){
+            r.setDeploymentProfile("STATIC".equals(r.getProjectType()) ? "STATIC" : "LIGHTWEIGHT");
+        }
+        if("STATIC".equals(r.getDeploymentProfile()))r.setProjectType("STATIC");
+        if("LIGHTWEIGHT".equals(r.getDeploymentProfile())||"CUSTOM".equals(r.getDeploymentProfile()))r.setProjectType("CONTAINER");
         if(!StringUtils.hasText(r.getProjectDirectory()))r.setProjectDirectory(".");
         if(!StringUtils.hasText(r.getBuildOutput()))r.setBuildOutput("dist");
         if(!StringUtils.hasText(r.getDockerfilePath()))r.setDockerfilePath("Dockerfile");
@@ -60,6 +66,11 @@ public class ProjectService {
         if(!StringUtils.hasText(r.getProjectName())||!StringUtils.hasText(r.getGitUrl()))throw new IllegalArgumentException("projectName and gitUrl are required");
         validateGitSource(r);
         if(!"STATIC".equals(r.getProjectType())&&!"CONTAINER".equals(r.getProjectType()))throw new IllegalArgumentException("projectType must be STATIC or CONTAINER");
+        if(!"STATIC".equals(r.getDeploymentProfile())&&!"LIGHTWEIGHT".equals(r.getDeploymentProfile())&&!"CUSTOM".equals(r.getDeploymentProfile())){
+            throw new IllegalArgumentException("deploymentProfile must be STATIC, LIGHTWEIGHT or CUSTOM for source projects");
+        }
+        if("STATIC".equals(r.getDeploymentProfile())&&!"STATIC".equals(r.getProjectType()))throw new IllegalArgumentException("STATIC profile requires STATIC projectType");
+        if(!"STATIC".equals(r.getDeploymentProfile())&&!"CONTAINER".equals(r.getProjectType()))throw new IllegalArgumentException("Container profiles require CONTAINER projectType");
         validateRelativePath(r.getProjectDirectory(),"projectDirectory");
         if(!StringUtils.hasText(r.getPreviewPath())||"/".equals(r.getPreviewPath())||!r.getPreviewPath().matches("^/[A-Za-z0-9][A-Za-z0-9/_-]*$"))throw new IllegalArgumentException("Invalid previewPath");
 
