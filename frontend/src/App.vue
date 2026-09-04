@@ -2,6 +2,8 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AppLayout from './layout/Index.vue'
 import HomeView from './views/HomeView.vue'
+import StaticCatalogView from './views/StaticCatalogView.vue'
+import YunxiaoArtifactsView from './views/YunxiaoArtifactsView.vue'
 import ProjectCenterView from './views/ProjectCenterView.vue'
 import ProjectCreateView from './views/ProjectCreateView.vue'
 import UnifiedProjectDetailView from './views/UnifiedProjectDetailView.vue'
@@ -18,10 +20,13 @@ const route=computed(()=>{
   const legacyProject=p.match(/^\/poc-projects\/(\d+)$/)
   if(legacyProject)return{component:UnifiedProjectDetailView,title:'项目详情',props:{projectKind:'source',projectId:Number(legacyProject[1])}}
   if(p==='/projects/new')return{component:ProjectCreateView,title:'新建项目'}
-  if(['/projects','/poc-projects','/artifact-delivery','/static-previews','/previews'].includes(p))return{component:ProjectCenterView,title:'项目中心'}
+  if(['/projects','/poc-projects','/artifact-delivery'].includes(p))return{component:ProjectCenterView,title:'项目中心'}
   if(p==='/deployments')return{component:DeploymentsView,title:'部署中心'}
-  if(['/integrations','/yunxiao-artifacts','/runtime'].includes(p))return{component:IntegrationsView,title:'系统集成'}
-  return{component:HomeView,title:'平台总览'}
+  if(['/integrations','/runtime'].includes(p))return{component:IntegrationsView,title:'系统集成'}
+  if(['/artifacts','/yunxiao-artifacts'].includes(p))return{component:YunxiaoArtifactsView,title:'制品仓库'}
+  if(p==='/dashboard')return{component:HomeView,title:'平台总览'}
+  if(['/', '/static-previews','/previews'].includes(p))return{component:StaticCatalogView,title:'静态预览'}
+  return{component:StaticCatalogView,title:'静态预览'}
 })
 onMounted(()=>window.addEventListener('popstate',syncPath))
 onUnmounted(()=>window.removeEventListener('popstate',syncPath))
