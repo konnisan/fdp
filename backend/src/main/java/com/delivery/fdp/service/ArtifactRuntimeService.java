@@ -4,6 +4,7 @@ import com.delivery.fdp.config.RuntimeProperties;
 import com.delivery.fdp.repository.ArtifactDeliveryRepository;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -128,7 +129,13 @@ public class ArtifactRuntimeService {
     }
 
     private Path cwd() {
-        return Path.of(runtime.getArtifactRoot()).toAbsolutePath().normalize();
+        try {
+            Path path = Path.of(runtime.getArtifactRoot()).toAbsolutePath().normalize();
+            Files.createDirectories(path);
+            return path;
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot prepare artifact runtime directory", e);
+        }
     }
 
     private ArtifactDeliveryRepository.Project project(Long id) {
