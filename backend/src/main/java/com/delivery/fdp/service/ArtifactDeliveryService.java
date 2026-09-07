@@ -19,6 +19,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -53,8 +54,26 @@ public class ArtifactDeliveryService {
 
     public ArtifactDeliveryRepository.Project create(ArtifactDeliveryProjectRequest request) {
         normalize(request);
+        if (!StringUtils.hasText(request.getProjectCode())) {
+            request.setProjectCode(generateProjectCode(request));
+        }
         validate(request);
         long id = repository.create(request);
+        return project(id);
+    }
+
+    public ArtifactDeliveryRepository.Project update(Long id, ArtifactDeliveryProjectRequest request) {
+        ArtifactDeliveryRepository.Project current = project(id);
+        if ("DEPLOYING".equals(current.status()) || "QUEUED".equals(current.status())) {
+            throw new IllegalStateException("部署任务执行中，暂时不能修改 Docker 配置");
+        }
+        if ("RUNNING".equals(current.status())) {
+            throw new IllegalStateException("当前容器正在运行。请先停止容器，再修改 Docker 配置并重新部署");
+        }
+        request.setProjectCode(current.projectCode());
+        normalize(request);
+        validate(request);
+        repository.update(id, request);
         return project(id);
     }
 
@@ -194,26 +213,38 @@ public class ArtifactDeliveryService {
         if (StringUtils.hasText(project.envFile())) {
             Path env = Path.of(project.envFile()).toAbsolutePath().normalize();
             if (!Files.isRegularFile(env)) {
-                throw new IllegalStateException("FDP 环境变量文件不存在: " + env);
+                throw new IllegalStateException("服务器 Env 文件不存在: " + env + "。请先在 FDP 服务器创建该文件后再部署");
             }
+        }
+        if (StringUtils.hasText(project.hostDataPath())) {
+            Files.createDirectories(Path.of(project.hostDataPath()).toAbsolutePath().normalize());
         }
 
         run("docker rm -f " + ShellCommandSupport.quote(project.containerName()) + " >/dev/null 2>&1 || true", cwd);
         StringBuilder command = new StringBuilder("docker run -d --name ")
                 .append(ShellCommandSupport.quote(project.containerName()))
-                .append(" --restart unless-stopped")
-                .append(" -p ")
-                .append(ShellCommandSupport.quote("127.0.0.1:" + project.hostPort() + ":" + manifest.backendContainerPort()));
+                .append(" --restart unless-stopped");
+        if (StringUtils.hasText(project.cpuLimit())) {
+            command.append(" --cpus ").append(ShellCommandSupport.quote(project.cpuLimit()));
+        }
+        if (StringUtils.hasText(project.memoryLimit())) {
+            command.append(" --memory ").append(ShellCommandSupport.quote(project.memoryLimit()));
+        }
+        command.append(" -p ")
+                .append(ShellCommandSupport.quote("127.0.0.1:" + project.hostPort() + ":" + project.containerPort()));
         if (StringUtils.hasText(project.envFile())) {
             command.append(" --env-file ").append(ShellCommandSupport.quote(Path.of(project.envFile()).toAbsolutePath().normalize().toString()));
+        }
+        if (StringUtils.hasText(project.hostDataPath())) {
+            command.append(" -v ").append(ShellCommandSupport.quote(project.hostDataPath() + ":" + project.containerDataPath()));
         }
         command.append(" ").append(ShellCommandSupport.quote(manifest.backendImage()));
         run(command.toString(), cwd);
 
-        if (StringUtils.hasText(manifest.backendHealthCheck())) {
-            String path = manifest.backendHealthCheck().startsWith("/")
-                    ? manifest.backendHealthCheck()
-                    : "/" + manifest.backendHealthCheck();
+        if (StringUtils.hasText(project.healthCheckPath())) {
+            String path = project.healthCheckPath().startsWith("/")
+                    ? project.healthCheckPath()
+                    : "/" + project.healthCheckPath();
             String url = "http://127.0.0.1:" + project.hostPort() + path;
             run("for i in $(seq 1 30); do curl -fsS --max-time 5 " + ShellCommandSupport.quote(url)
                     + " >/dev/null && exit 0; sleep 2; done; exit 1", cwd);
@@ -240,17 +271,7 @@ public class ArtifactDeliveryService {
         String frontendRoot = optional(frontend, "root", ".");
         String imageArchive = required(backend, "imageArchive");
         String image = required(backend, "image");
-        int containerPort;
-        try {
-            containerPort = Integer.parseInt(required(backend, "containerPort"));
-        } catch (NumberFormatException e) {
-            throw new IllegalStateException("backend.containerPort 必须是整数");
-        }
-        if (containerPort < 1 || containerPort > 65535) {
-            throw new IllegalStateException("backend.containerPort 非法");
-        }
-        String healthCheck = optional(backend, "healthCheck", "");
-        return new Manifest(frontendArchive, frontendRoot, imageArchive, image, containerPort, healthCheck);
+        return new Manifest(frontendArchive, frontendRoot, imageArchive, image);
     }
 
     private Map<String, Object> child(Map<?, ?> root, String key) {
@@ -355,30 +376,81 @@ public class ArtifactDeliveryService {
         request.setPreviewPath(trim(request.getPreviewPath()));
         request.setContainerName(trim(request.getContainerName()));
         request.setEnvFile(trim(request.getEnvFile()));
+        request.setCpuLimit(trim(request.getCpuLimit()));
+        request.setMemoryLimit(trim(request.getMemoryLimit()));
+        request.setHostDataPath(trim(request.getHostDataPath()));
+        request.setContainerDataPath(trim(request.getContainerDataPath()));
+        request.setHealthCheckPath(trim(request.getHealthCheckPath()));
         if (StringUtils.hasText(request.getPreviewPath()) && request.getPreviewPath().length() > 1) {
             request.setPreviewPath(request.getPreviewPath().replaceAll("/+$", ""));
+        }
+        if (StringUtils.hasText(request.getHealthCheckPath()) && !request.getHealthCheckPath().startsWith("/")) {
+            request.setHealthCheckPath("/" + request.getHealthCheckPath());
         }
     }
 
     private void validate(ArtifactDeliveryProjectRequest request) {
         if (!StringUtils.hasText(request.getProjectCode()) || !request.getProjectCode().matches("^[A-Za-z0-9._-]+$")) {
-            throw new IllegalArgumentException("projectCode 只能包含字母、数字、点、下划线和短横线");
+            throw new IllegalArgumentException("内部项目标识格式非法");
         }
-        if (!StringUtils.hasText(request.getProjectName())) throw new IllegalArgumentException("projectName is required");
-        if (!StringUtils.hasText(request.getPipelineId())) throw new IllegalArgumentException("pipelineId is required");
-        if (!StringUtils.hasText(request.getPackageRepoId())) throw new IllegalArgumentException("packageRepoId is required");
-        if (!StringUtils.hasText(request.getArtifactName())) throw new IllegalArgumentException("artifactName is required");
+        if (!StringUtils.hasText(request.getProjectName())) throw new IllegalArgumentException("项目名称不能为空");
+        if (!StringUtils.hasText(request.getPipelineId())) throw new IllegalArgumentException("必须选择 Flow 流水线");
+        if (!StringUtils.hasText(request.getPackageRepoId())) throw new IllegalArgumentException("必须选择 Packages 仓库");
+        if (!StringUtils.hasText(request.getArtifactName())) throw new IllegalArgumentException("必须选择交付制品");
         if (!StringUtils.hasText(request.getPreviewPath()) || "/".equals(request.getPreviewPath())
                 || !request.getPreviewPath().matches("^/[A-Za-z0-9._/-]+$") || request.getPreviewPath().contains("..")) {
-            throw new IllegalArgumentException("previewPath 必须是非根路径，例如 /financial-system");
+            throw new IllegalArgumentException("访问 Path 必须是非根路径，例如 /financial-system");
         }
         if (request.getHostPort() == null || request.getHostPort() < 1024 || request.getHostPort() > 65535) {
-            throw new IllegalArgumentException("hostPort 必须在 1024-65535 之间");
+            throw new IllegalArgumentException("宿主机端口必须在 1024-65535 之间");
+        }
+        if (request.getContainerPort() == null || request.getContainerPort() < 1 || request.getContainerPort() > 65535) {
+            throw new IllegalArgumentException("容器端口必须在 1-65535 之间");
         }
         if (!StringUtils.hasText(request.getContainerName())
                 || !request.getContainerName().matches("^[A-Za-z0-9][A-Za-z0-9_.-]+$")) {
-            throw new IllegalArgumentException("containerName 格式非法");
+            throw new IllegalArgumentException("Container Name 格式非法");
         }
+        if (StringUtils.hasText(request.getEnvFile()) && !request.getEnvFile().startsWith("/")) {
+            throw new IllegalArgumentException("Env 文件必须填写 FDP Linux 服务器上的绝对路径，例如 /data/fdp/env/financial-system.env");
+        }
+        if (StringUtils.hasText(request.getCpuLimit()) && !request.getCpuLimit().matches("^[0-9]+(?:\\.[0-9]+)?$")) {
+            throw new IllegalArgumentException("CPU Limit 格式非法，例如 1 或 0.5");
+        }
+        if (StringUtils.hasText(request.getMemoryLimit()) && !request.getMemoryLimit().matches("^[0-9]+[kKmMgG]?$")) {
+            throw new IllegalArgumentException("Memory Limit 格式非法，例如 512m 或 1g");
+        }
+        boolean hostVolume = StringUtils.hasText(request.getHostDataPath());
+        boolean containerVolume = StringUtils.hasText(request.getContainerDataPath());
+        if (hostVolume != containerVolume) {
+            throw new IllegalArgumentException("Volume 必须同时填写 Host Path 和 Container Path");
+        }
+        if (hostVolume && !request.getHostDataPath().startsWith("/")) {
+            throw new IllegalArgumentException("Host Volume 必须是 FDP Linux 服务器绝对路径");
+        }
+        if (containerVolume && !request.getContainerDataPath().startsWith("/")) {
+            throw new IllegalArgumentException("Container Volume 必须是容器内绝对路径");
+        }
+        if (StringUtils.hasText(request.getHealthCheckPath()) && !request.getHealthCheckPath().matches("^/[A-Za-z0-9_./-]*$")) {
+            throw new IllegalArgumentException("Health Check Path 格式非法");
+        }
+    }
+
+    private String generateProjectCode(ArtifactDeliveryProjectRequest request) {
+        String base = firstNonBlank(request.getArtifactName(), request.getContainerName(), request.getProjectName(), "artifact");
+        base = base.toLowerCase().replaceAll("[^a-z0-9._-]+", "-").replaceAll("^-+|-+$", "");
+        if (!StringUtils.hasText(base)) base = "artifact";
+        if (base.length() > 50) base = base.substring(0, 50);
+        String candidate;
+        do {
+            candidate = base + "-" + UUID.randomUUID().toString().substring(0, 8);
+        } while (repository.existsProjectCode(candidate));
+        return candidate;
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) if (StringUtils.hasText(value)) return value.trim();
+        return "artifact";
     }
 
     private String safeSegment(String value) {
@@ -403,8 +475,6 @@ public class ArtifactDeliveryService {
             String frontendArchive,
             String frontendRoot,
             String backendImageArchive,
-            String backendImage,
-            int backendContainerPort,
-            String backendHealthCheck
+            String backendImage
     ) {}
 }
