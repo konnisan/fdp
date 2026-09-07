@@ -15,13 +15,16 @@ import java.util.Map;
 public class ArtifactRuntimeService {
     private final RuntimeProperties runtime;
     private final ArtifactDeliveryRepository projects;
+    private final ManagedEnvironmentService environment;
     private final CommandExecutor exec;
 
     public ArtifactRuntimeService(RuntimeProperties runtime,
                                   ArtifactDeliveryRepository projects,
+                                  ManagedEnvironmentService environment,
                                   CommandExecutor exec) {
         this.runtime = runtime;
         this.projects = projects;
+        this.environment = environment;
         this.exec = exec;
     }
 
@@ -52,17 +55,9 @@ public class ArtifactRuntimeService {
         return result;
     }
 
-    public Map<String, Object> restart(Long projectId) {
-        return action(projectId, "restart", "RUNNING");
-    }
-
-    public Map<String, Object> stop(Long projectId) {
-        return action(projectId, "stop", "STOPPED");
-    }
-
-    public Map<String, Object> remove(Long projectId) {
-        return action(projectId, "rm -f", "STOPPED");
-    }
+    public Map<String, Object> restart(Long projectId) { return action(projectId, "restart", "RUNNING"); }
+    public Map<String, Object> stop(Long projectId) { return action(projectId, "stop", "STOPPED"); }
+    public Map<String, Object> remove(Long projectId) { return action(projectId, "rm -f", "STOPPED"); }
 
     public Map<String, Object> logs(Long projectId) {
         ArtifactDeliveryRepository.Project project = project(projectId);
@@ -88,6 +83,7 @@ public class ArtifactRuntimeService {
                 Map.of("code", "VERIFY", "name", "校验制品与版本"),
                 Map.of("code", "PUBLISH_FRONTEND", "name", "发布前端静态资源到 Nginx"),
                 Map.of("code", "LOAD_IMAGE", "name", "加载项目专属后端 Docker Image"),
+                Map.of("code", "MATERIALIZE_ENV", "name", "生成 FDP 托管的 Docker 环境变量文件"),
                 Map.of("code", "REPLACE_CONTAINER", "name", "按 FDP Docker 配置替换 Container"),
                 Map.of("code", "HEALTH_CHECK", "name", "执行配置的健康检查"),
                 Map.of("code", "REFRESH_ROUTE", "name", "刷新 8090 客户预览路由")
@@ -125,8 +121,12 @@ public class ArtifactRuntimeService {
         result.put("image", project.currentImage());
         result.put("version", project.currentVersion());
         result.put("status", project.status());
-        result.put("envFile", project.envFile());
-        result.put("envFileReady", envFileReady(project.envFile()));
+        result.put("environmentManaged", environment.configured(project.id()));
+        result.put("environmentVariableCount", environment.variableCount(project.id()));
+        result.put("managedEnvPath", Path.of(runtime.getEnvRoot()).toAbsolutePath().normalize()
+                .resolve(project.projectCode().replaceAll("[^A-Za-z0-9._-]", "_") + ".env").toString());
+        result.put("legacyEnvFile", project.envFile());
+        result.put("legacyEnvFileReady", envFileReady(project.envFile()));
         result.put("cpuLimit", project.cpuLimit());
         result.put("memoryLimit", project.memoryLimit());
         result.put("hostDataPath", project.hostDataPath());
@@ -137,16 +137,11 @@ public class ArtifactRuntimeService {
 
     private Boolean envFileReady(String envFile) {
         if (!StringUtils.hasText(envFile)) return null;
-        try {
-            return Files.isRegularFile(Path.of(envFile).toAbsolutePath().normalize());
-        } catch (Exception ignored) {
-            return false;
-        }
+        try { return Files.isRegularFile(Path.of(envFile).toAbsolutePath().normalize()); }
+        catch (Exception ignored) { return false; }
     }
 
-    private boolean dryRun() {
-        return !runtime.isExecutionEnabled() || ShellCommandSupport.windows();
-    }
+    private boolean dryRun() { return !runtime.isExecutionEnabled() || ShellCommandSupport.windows(); }
 
     private Path cwd() {
         try {
