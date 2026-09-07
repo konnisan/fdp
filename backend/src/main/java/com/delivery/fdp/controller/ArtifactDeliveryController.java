@@ -3,6 +3,7 @@ package com.delivery.fdp.controller;
 import com.delivery.fdp.dto.ArtifactDeliveryProjectRequest;
 import com.delivery.fdp.repository.ArtifactDeliveryRepository;
 import com.delivery.fdp.service.ArtifactDeliveryService;
+import com.delivery.fdp.service.ManagedEnvironmentService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,9 +19,12 @@ import java.util.Map;
 @RequestMapping("/api/artifact-delivery")
 public class ArtifactDeliveryController {
     private final ArtifactDeliveryService service;
+    private final ManagedEnvironmentService environment;
 
-    public ArtifactDeliveryController(ArtifactDeliveryService service) {
+    public ArtifactDeliveryController(ArtifactDeliveryService service,
+                                      ManagedEnvironmentService environment) {
         this.service = service;
+        this.environment = environment;
     }
 
     @GetMapping("/projects")
@@ -37,6 +41,18 @@ public class ArtifactDeliveryController {
     public ArtifactDeliveryRepository.Project update(@PathVariable Long id,
                                                      @RequestBody ArtifactDeliveryProjectRequest request) {
         return service.update(id, request);
+    }
+
+    @GetMapping("/projects/{id}/environment")
+    public Map<String, Object> environment(@PathVariable Long id) {
+        return environment.info(id);
+    }
+
+    @PutMapping("/projects/{id}/environment")
+    public Map<String, Object> updateEnvironment(@PathVariable Long id,
+                                                 @RequestBody EnvironmentRequest request) {
+        environment.save(id, request == null ? "" : request.content());
+        return environment.info(id);
     }
 
     @GetMapping("/projects/{id}/releases")
@@ -56,4 +72,5 @@ public class ArtifactDeliveryController {
     }
 
     public record DeployRequest(String runId) {}
+    public record EnvironmentRequest(String content) {}
 }
