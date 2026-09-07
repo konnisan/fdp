@@ -7,6 +7,7 @@ import StaticCatalogView from './views/StaticCatalogView.vue'
 import ProjectCenterView from './views/ProjectCenterView.vue'
 import ProjectCreateView from './views/ProjectCreateView.vue'
 import ContainerDetailView from './views/ContainerDetailView.vue'
+import ArtifactContainerEditView from './views/ArtifactContainerEditView.vue'
 import IntegrationsView from './views/IntegrationsView.vue'
 
 const path=ref(window.location.pathname||'/')
@@ -15,6 +16,9 @@ function navigate(to){if(window.location.pathname!==to)window.history.pushState(
 
 const route=computed(()=>{
   const p=path.value
+  const editMatch=p.match(/^\/containers\/artifact\/(\d+)\/edit$/)
+  if(editMatch)return{component:ArtifactContainerEditView,title:'编辑容器部署',props:{projectId:Number(editMatch[1])}}
+
   const containerMatch=p.match(/^\/containers\/(source|artifact)\/(\d+)$/)
   if(containerMatch)return{component:ContainerDetailView,title:'容器项目',props:{projectKind:containerMatch[1],projectId:Number(containerMatch[2])}}
 
@@ -26,7 +30,7 @@ const route=computed(()=>{
 
   if(p==='/pipelines')return{component:PipelinesView,title:'流水线'}
   if(['/artifacts','/yunxiao-artifacts'].includes(p))return{component:ArtifactsView,title:'制品仓库'}
-  if(['/containers/new','/projects/new'].includes(p))return{component:ProjectCreateView,title:'接入容器项目'}
+  if(['/containers/new','/projects/new'].includes(p))return{component:ProjectCreateView,title:'新增容器部署'}
   if(['/containers','/projects','/artifact-delivery'].includes(p))return{component:ProjectCenterView,title:'容器部署'}
   if(['/system','/integrations','/runtime','/dashboard'].includes(p))return{component:IntegrationsView,title:'系统信息'}
   if(['/', '/previews','/static-previews'].includes(p))return{component:StaticCatalogView,title:'静态预览'}
