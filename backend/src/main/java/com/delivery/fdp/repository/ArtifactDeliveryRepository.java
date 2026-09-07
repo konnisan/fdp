@@ -85,6 +85,23 @@ public class ArtifactDeliveryRepository {
                 blankToNull(request.getHostDataPath()), blankToNull(request.getContainerDataPath()), blankToNull(request.getHealthCheckPath()), id);
     }
 
+    public Optional<String> environmentCiphertext(Long id) {
+        List<String> values = jdbc.query("SELECT env_content_ciphertext FROM artifact_delivery_project WHERE id=?",
+                (rs, row) -> rs.getString(1), id);
+        return values.stream().findFirst().filter(v -> v != null && !v.isBlank());
+    }
+
+    public void updateEnvironmentCiphertext(Long id, String ciphertext) {
+        jdbc.update("UPDATE artifact_delivery_project SET env_content_ciphertext=? WHERE id=?", blankToNull(ciphertext), id);
+    }
+
+    public boolean hasManagedEnvironment(Long id) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM artifact_delivery_project WHERE id=? AND env_content_ciphertext IS NOT NULL AND env_content_ciphertext<>''",
+                Integer.class, id);
+        return count != null && count > 0;
+    }
+
     public void updateStatus(Long id, String status) {
         jdbc.update("UPDATE artifact_delivery_project SET status=? WHERE id=?", status, id);
     }
