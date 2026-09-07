@@ -12,7 +12,13 @@ public class ArtifactDeliveryProjectRequest {
     private Integer hostPort;
     private Integer containerPort;
     private String containerName;
+    /**
+     * Legacy server-side env file path. Kept only for existing records/migration compatibility.
+     * New UI should use envContent so FDP owns the per-project container environment.
+     */
     private String envFile;
+    /** Raw KEY=VALUE lines entered in FDP. Encrypted before persistence. */
+    private String envContent;
     private String cpuLimit;
     private String memoryLimit;
     private String hostDataPath;
@@ -43,6 +49,8 @@ public class ArtifactDeliveryProjectRequest {
     public void setContainerName(String containerName) { this.containerName = containerName; }
     public String getEnvFile() { return envFile; }
     public void setEnvFile(String envFile) { this.envFile = envFile; }
+    public String getEnvContent() { return envContent; }
+    public void setEnvContent(String envContent) { this.envContent = envContent; }
     public String getCpuLimit() { return cpuLimit; }
     public void setCpuLimit(String cpuLimit) { this.cpuLimit = cpuLimit; }
     public String getMemoryLimit() { return memoryLimit; }
