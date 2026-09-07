@@ -31,6 +31,7 @@ public class ArtifactDeliveryService {
     private final YunxiaoOpenApiService yunxiao;
     private final CommandExecutor exec;
     private final DeploymentService deploymentService;
+    private final ManagedEnvironmentService environment;
     private final TaskExecutor deploymentTaskExecutor;
     private final Set<Long> activeProjects = ConcurrentHashMap.newKeySet();
 
@@ -39,12 +40,14 @@ public class ArtifactDeliveryService {
                                    YunxiaoOpenApiService yunxiao,
                                    CommandExecutor exec,
                                    DeploymentService deploymentService,
+                                   ManagedEnvironmentService environment,
                                    @Qualifier("deploymentTaskExecutor") TaskExecutor deploymentTaskExecutor) {
         this.runtime = runtime;
         this.repository = repository;
         this.yunxiao = yunxiao;
         this.exec = exec;
         this.deploymentService = deploymentService;
+        this.environment = environment;
         this.deploymentTaskExecutor = deploymentTaskExecutor;
     }
 
@@ -58,7 +61,9 @@ public class ArtifactDeliveryService {
             request.setProjectCode(generateProjectCode(request));
         }
         validate(request);
+        environment.assertSavable(request.getEnvContent());
         long id = repository.create(request);
+        environment.save(id, request.getEnvContent());
         return project(id);
     }
 
@@ -67,13 +72,12 @@ public class ArtifactDeliveryService {
         if ("DEPLOYING".equals(current.status()) || "QUEUED".equals(current.status())) {
             throw new IllegalStateException("部署任务执行中，暂时不能修改 Docker 配置");
         }
-        if ("RUNNING".equals(current.status())) {
-            throw new IllegalStateException("当前容器正在运行。请先停止容器，再修改 Docker 配置并重新部署");
-        }
         request.setProjectCode(current.projectCode());
         normalize(request);
         validate(request);
+        environment.assertSavable(request.getEnvContent());
         repository.update(id, request);
+        if (request.getEnvContent() != null) environment.save(id, request.getEnvContent());
         return project(id);
     }
 
@@ -210,12 +214,16 @@ public class ArtifactDeliveryService {
         run("docker load -i " + ShellCommandSupport.quote(imageArchive.toString()), cwd);
         run("docker image inspect " + ShellCommandSupport.quote(manifest.backendImage()) + " >/dev/null", cwd);
 
-        if (StringUtils.hasText(project.envFile())) {
-            Path env = Path.of(project.envFile()).toAbsolutePath().normalize();
-            if (!Files.isRegularFile(env)) {
-                throw new IllegalStateException("服务器 Env 文件不存在: " + env + "。请先在 FDP 服务器创建该文件后再部署");
+        Path managedEnv = environment.materialize(project);
+        Path legacyEnv = null;
+        if (managedEnv == null && StringUtils.hasText(project.envFile())) {
+            legacyEnv = Path.of(project.envFile()).toAbsolutePath().normalize();
+            if (!Files.isRegularFile(legacyEnv)) {
+                throw new IllegalStateException("旧版服务器 Env 文件不存在: " + legacyEnv + "。请在 FDP 编辑页把环境变量迁移到平台托管配置");
             }
         }
+        Path dockerEnv = managedEnv != null ? managedEnv : legacyEnv;
+
         if (StringUtils.hasText(project.hostDataPath())) {
             Files.createDirectories(Path.of(project.hostDataPath()).toAbsolutePath().normalize());
         }
@@ -232,8 +240,8 @@ public class ArtifactDeliveryService {
         }
         command.append(" -p ")
                 .append(ShellCommandSupport.quote("127.0.0.1:" + project.hostPort() + ":" + project.containerPort()));
-        if (StringUtils.hasText(project.envFile())) {
-            command.append(" --env-file ").append(ShellCommandSupport.quote(Path.of(project.envFile()).toAbsolutePath().normalize().toString()));
+        if (dockerEnv != null) {
+            command.append(" --env-file ").append(ShellCommandSupport.quote(dockerEnv.toString()));
         }
         if (StringUtils.hasText(project.hostDataPath())) {
             command.append(" -v ").append(ShellCommandSupport.quote(project.hostDataPath() + ":" + project.containerDataPath()));
@@ -412,7 +420,7 @@ public class ArtifactDeliveryService {
             throw new IllegalArgumentException("Container Name 格式非法");
         }
         if (StringUtils.hasText(request.getEnvFile()) && !request.getEnvFile().startsWith("/")) {
-            throw new IllegalArgumentException("Env 文件必须填写 FDP Linux 服务器上的绝对路径，例如 /data/fdp/env/financial-system.env");
+            throw new IllegalArgumentException("旧版 Env 文件必须是 FDP Linux 服务器绝对路径");
         }
         if (StringUtils.hasText(request.getCpuLimit()) && !request.getCpuLimit().matches("^[0-9]+(?:\\.[0-9]+)?$")) {
             throw new IllegalArgumentException("CPU Limit 格式非法，例如 1 或 0.5");
