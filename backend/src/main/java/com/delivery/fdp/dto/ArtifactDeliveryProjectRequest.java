@@ -10,8 +10,14 @@ public class ArtifactDeliveryProjectRequest {
     private String artifactName;
     private String previewPath;
     private Integer hostPort;
+    private Integer containerPort;
     private String containerName;
     private String envFile;
+    private String cpuLimit;
+    private String memoryLimit;
+    private String hostDataPath;
+    private String containerDataPath;
+    private String healthCheckPath;
 
     public String getProjectCode() { return projectCode; }
     public void setProjectCode(String projectCode) { this.projectCode = projectCode; }
@@ -31,8 +37,20 @@ public class ArtifactDeliveryProjectRequest {
     public void setPreviewPath(String previewPath) { this.previewPath = previewPath; }
     public Integer getHostPort() { return hostPort; }
     public void setHostPort(Integer hostPort) { this.hostPort = hostPort; }
+    public Integer getContainerPort() { return containerPort; }
+    public void setContainerPort(Integer containerPort) { this.containerPort = containerPort; }
     public String getContainerName() { return containerName; }
     public void setContainerName(String containerName) { this.containerName = containerName; }
     public String getEnvFile() { return envFile; }
     public void setEnvFile(String envFile) { this.envFile = envFile; }
+    public String getCpuLimit() { return cpuLimit; }
+    public void setCpuLimit(String cpuLimit) { this.cpuLimit = cpuLimit; }
+    public String getMemoryLimit() { return memoryLimit; }
+    public void setMemoryLimit(String memoryLimit) { this.memoryLimit = memoryLimit; }
+    public String getHostDataPath() { return hostDataPath; }
+    public void setHostDataPath(String hostDataPath) { this.hostDataPath = hostDataPath; }
+    public String getContainerDataPath() { return containerDataPath; }
+    public void setContainerDataPath(String containerDataPath) { this.containerDataPath = containerDataPath; }
+    public String getHealthCheckPath() { return healthCheckPath; }
+    public void setHealthCheckPath(String healthCheckPath) { this.healthCheckPath = healthCheckPath; }
 }
