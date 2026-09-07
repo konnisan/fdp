@@ -33,14 +33,20 @@ public class ArtifactDeliveryRepository {
         return jdbc.query("SELECT * FROM artifact_delivery_project WHERE status='RUNNING' ORDER BY id", (rs, row) -> mapProject(rs));
     }
 
+    public boolean existsProjectCode(String projectCode) {
+        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM artifact_delivery_project WHERE project_code=?", Integer.class, projectCode);
+        return count != null && count > 0;
+    }
+
     public long create(ArtifactDeliveryProjectRequest request) {
         KeyHolder key = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO artifact_delivery_project
                     (project_code, project_name, pipeline_id, pipeline_name, package_repo_id, package_repo_name,
-                     artifact_name, preview_path, host_port, container_name, env_file, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')
+                     artifact_name, preview_path, host_port, container_port, container_name, env_file,
+                     cpu_limit, memory_limit, host_data_path, container_data_path, health_check_path, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, request.getProjectCode());
             ps.setString(2, request.getProjectName());
@@ -51,11 +57,32 @@ public class ArtifactDeliveryRepository {
             ps.setString(7, request.getArtifactName());
             ps.setString(8, request.getPreviewPath());
             ps.setInt(9, request.getHostPort());
-            ps.setString(10, request.getContainerName());
-            ps.setString(11, blankToNull(request.getEnvFile()));
+            ps.setInt(10, request.getContainerPort());
+            ps.setString(11, request.getContainerName());
+            ps.setString(12, blankToNull(request.getEnvFile()));
+            ps.setString(13, blankToNull(request.getCpuLimit()));
+            ps.setString(14, blankToNull(request.getMemoryLimit()));
+            ps.setString(15, blankToNull(request.getHostDataPath()));
+            ps.setString(16, blankToNull(request.getContainerDataPath()));
+            ps.setString(17, blankToNull(request.getHealthCheckPath()));
             return ps;
         }, key);
         return key.getKey().longValue();
+    }
+
+    public void update(Long id, ArtifactDeliveryProjectRequest request) {
+        jdbc.update("""
+                UPDATE artifact_delivery_project
+                   SET project_name=?, pipeline_id=?, pipeline_name=?, package_repo_id=?, package_repo_name=?,
+                       artifact_name=?, preview_path=?, host_port=?, container_port=?, container_name=?, env_file=?,
+                       cpu_limit=?, memory_limit=?, host_data_path=?, container_data_path=?, health_check_path=?
+                 WHERE id=?
+                """,
+                request.getProjectName(), request.getPipelineId(), request.getPipelineName(),
+                request.getPackageRepoId(), request.getPackageRepoName(), request.getArtifactName(),
+                request.getPreviewPath(), request.getHostPort(), request.getContainerPort(), request.getContainerName(),
+                blankToNull(request.getEnvFile()), blankToNull(request.getCpuLimit()), blankToNull(request.getMemoryLimit()),
+                blankToNull(request.getHostDataPath()), blankToNull(request.getContainerDataPath()), blankToNull(request.getHealthCheckPath()), id);
     }
 
     public void updateStatus(Long id, String status) {
@@ -130,8 +157,14 @@ public class ArtifactDeliveryRepository {
                 rs.getString("artifact_name"),
                 rs.getString("preview_path"),
                 rs.getInt("host_port"),
+                rs.getObject("container_port", Integer.class),
                 rs.getString("container_name"),
                 rs.getString("env_file"),
+                rs.getString("cpu_limit"),
+                rs.getString("memory_limit"),
+                rs.getString("host_data_path"),
+                rs.getString("container_data_path"),
+                rs.getString("health_check_path"),
                 rs.getString("status"),
                 rs.getString("current_version"),
                 rs.getString("current_run_id"),
@@ -165,8 +198,14 @@ public class ArtifactDeliveryRepository {
             String artifactName,
             String previewPath,
             Integer hostPort,
+            Integer containerPort,
             String containerName,
             String envFile,
+            String cpuLimit,
+            String memoryLimit,
+            String hostDataPath,
+            String containerDataPath,
+            String healthCheckPath,
             String status,
             String currentVersion,
             String currentRunId,
