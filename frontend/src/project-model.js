@@ -46,7 +46,7 @@ export function normalizeArtifactProject(project){
     image:project.currentImage,
     containerName:project.containerName,
     hostPort:project.hostPort,
-    containerPort:null,
+    containerPort:project.containerPort,
     pipelineId:project.pipelineId,
     pipelineName:project.pipelineName,
     artifactName:project.artifactName,
