@@ -33,6 +33,8 @@ export const listYunxiaoArtifacts=(repoId,params)=>http.get(`/yunxiao/packages/r
 export const listArtifactDeliveryProjects=()=>http.get('/artifact-delivery/projects').then(r=>r.data)
 export const createArtifactDeliveryProject=data=>http.post('/artifact-delivery/projects',data).then(r=>r.data)
 export const updateArtifactDeliveryProject=(id,data)=>http.put(`/artifact-delivery/projects/${id}`,data).then(r=>r.data)
+export const getArtifactEnvironment=id=>http.get(`/artifact-delivery/projects/${id}/environment`).then(r=>r.data)
+export const updateArtifactEnvironment=(id,content)=>http.put(`/artifact-delivery/projects/${id}/environment`,{content}).then(r=>r.data)
 export const listArtifactDeliveryReleases=id=>http.get(`/artifact-delivery/projects/${id}/releases`).then(r=>r.data)
 export const listArtifactDeliveryHistory=id=>http.get(`/artifact-delivery/projects/${id}/history`).then(r=>r.data)
 export const deployArtifactRelease=(id,runId)=>http.post(`/artifact-delivery/projects/${id}/deploy`,runId?{runId}:{}).then(r=>r.data)
