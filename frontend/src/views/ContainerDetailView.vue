@@ -53,6 +53,11 @@ const previewUrl=computed(()=>{
   const port=Number(runtime.value?.publicPort||8090)
   return `${window.location.protocol}//${window.location.hostname}:${port}${project.value.previewPath}`
 })
+const envSummary=computed(()=>{
+  if(artifactRuntime.value?.environmentManaged)return`FDP 托管 · ${artifactRuntime.value.environmentVariableCount||0} 个变量`
+  if(raw.value?.envFile)return'旧版服务器 Env'
+  return'未配置'
+})
 function err(e){return e.response?.data?.message||e.message}
 function short(v){return v&&v!=='DRY-RUN'?String(v).slice(0,12):(v||'-')}
 function time(v){if(!v)return'-';const n=Number(v);return Number.isFinite(n)?new Date(n).toLocaleString():String(v)}
@@ -82,13 +87,9 @@ async function deploySource(){
   catch(e){error.value=err(e)}finally{busy.value=''}
 }
 async function deployRelease(release){
-  if(raw.value?.envFile&&artifactRuntime.value?.envFileReady===false){
-    error.value=`服务器 Env 文件不存在：${raw.value.envFile}。请先在服务器创建该文件，或编辑配置修改路径。`
-    return
-  }
   if(windowsDryRun.value){info.value=`Windows DRY-RUN：已选择版本 ${release.version}，正式 Docker 部署只在 Linux 执行。`;return}
   if(!confirm(`部署 ${project.value.projectName} 版本 ${release.version}？`))return
-  busy.value=`release-${release.runId}`;error.value=''
+  busy.value=`release-${release.runId}`;error.value='';info.value=''
   try{await deployArtifactRelease(props.projectId,String(release.runId));info.value='制品部署已提交';await load()}
   catch(e){error.value=err(e)}finally{busy.value=''}
 }
@@ -123,7 +124,7 @@ onMounted(load)
 
 <template>
   <div class="page-stack restructure-page">
-    <PageHeader :title="project?.projectName||'容器项目'" :description="project?`${sourceLabel} · ${project.artifactName||''}`:'加载中…'">
+    <PageHeader :title="project?.projectName||'容器项目'" :description="project?`${sourceLabel} · ${raw?.artifactName||''}`:'加载中…'">
       <template #actions>
         <button class="soft-button" @click="emit('navigate','/containers')"><ArrowLeft :size="14" />返回容器部署</button>
         <button v-if="isArtifact&&project" class="soft-button" @click="emit('navigate',`/containers/artifact/${projectId}/edit`)"><Pencil :size="14" />编辑配置</button>
@@ -145,17 +146,18 @@ onMounted(load)
       <div class="tabs project-detail-tabs"><button v-for="tab in tabs" :key="tab[0]" :class="{active:activeTab===tab[0]}" @click="activeTab=tab[0]">{{tab[1]}}</button></div>
 
       <section v-if="activeTab==='overview'" class="detail-grid">
-        <article class="panel info-card"><h3>Docker 运行单元</h3><dl><div><dt>Container</dt><dd><code>{{project.containerName||'-'}}</code></dd></div><div><dt>Image</dt><dd><code>{{project.image||artifactRuntime?.runtimeImage||'部署版本后确定'}}</code></dd></div><div><dt>端口映射</dt><dd>{{project.hostPort||'-'}} → {{project.containerPort||'-'}}</dd></div><div><dt>Env</dt><dd><template v-if="raw.envFile"><code>{{raw.envFile}}</code> · {{artifactRuntime?.envFileReady?'已就绪':'未找到'}}</template><span v-else>未配置</span></dd></div></dl></article>
+        <article class="panel info-card"><h3>Docker 运行单元</h3><dl><div><dt>Container</dt><dd><code>{{project.containerName||'-'}}</code></dd></div><div><dt>Image</dt><dd><code>{{project.image||artifactRuntime?.runtimeImage||'部署版本后确定'}}</code></dd></div><div><dt>端口映射</dt><dd>{{project.hostPort||'-'}} → {{project.containerPort||'-'}}</dd></div><div><dt>环境变量</dt><dd>{{envSummary}}</dd></div></dl></article>
         <article class="panel info-card"><h3>部署来源</h3><dl><div><dt>来源</dt><dd>{{sourceLabel}}</dd></div><template v-if="isArtifact"><div><dt>Pipeline</dt><dd>{{raw.pipelineName||raw.pipelineId}}</dd></div><div><dt>Artifact</dt><dd><code>{{raw.artifactName}}</code></dd></div><div><dt>当前版本</dt><dd><code>{{project.version||'尚未部署'}}</code></dd></div></template><template v-else><div><dt>Git Branch</dt><dd>{{raw.gitBranch}}</dd></div><div><dt>Dockerfile</dt><dd><code>{{raw.dockerfilePath||'Dockerfile'}}</code></dd></div><div><dt>Commit</dt><dd><code>{{short(raw.deployedCommit)}}</code></dd></div></template></dl></article>
-        <article class="panel info-card span-2"><h3>客户访问地址</h3><div class="preview-highlight"><div><strong>{{previewUrl||'尚未配置'}}</strong><p>客户统一访问 Nginx :{{runtime?.publicPort||8090}}；Nginx 再转发到本机 127.0.0.1:{{project.hostPort||'-'}}。</p></div><div v-if="previewUrl"><button class="soft-button" @click="copy(previewUrl)"><Copy :size="14" />复制</button><a class="primary-button" :href="previewUrl" target="_blank">打开 <ExternalLink :size="14" /></a></div></div></article>
+        <article class="panel info-card span-2"><h3>客户访问地址</h3><div class="preview-highlight"><div><strong>{{previewUrl||'尚未配置'}}</strong><p>客户统一访问 Nginx :{{runtime?.publicPort||8090}}；Nginx 再转发到本机 127.0.0.1:{{project.hostPort||'-'}}，Container 内监听 {{project.containerPort||'-'}}。</p></div><div v-if="previewUrl"><button class="soft-button" @click="copy(previewUrl)"><Copy :size="14" />复制</button><a class="primary-button" :href="previewUrl" target="_blank">打开 <ExternalLink :size="14" /></a></div></div></article>
       </section>
 
       <section v-if="activeTab==='docker'" class="page-stack">
         <article class="panel runtime-unit-card">
           <div class="runtime-unit-head"><div><span class="runtime-icon"><Box :size="21" /></span><div><h2>{{project.containerName||'-'}}</h2><p>{{project.image||artifactRuntime?.runtimeImage||'尚未部署镜像'}}</p></div></div><span class="status-text" :class="project.status?.toLowerCase()"><i></i>{{runtimeStatusLabel}}</span></div>
-          <div class="runtime-facts"><div><span>Host Port</span><strong>{{project.hostPort||'-'}}</strong></div><div><span>Container Port</span><strong>{{project.containerPort||'-'}}</strong></div><div><span>CPU</span><strong>{{raw.cpuLimit||'不限'}}</strong></div><div><span>Memory</span><strong>{{raw.memoryLimit||'不限'}}</strong></div><div><span>Health</span><strong>{{raw.healthCheckPath||'未配置'}}</strong></div><div><span>Runtime</span><strong>{{artifactRuntime?.runtimeMode||runtime?.executionMode||'-'}}</strong></div></div>
-          <div v-if="raw.hostDataPath" class="inline-note" style="margin:12px 0 0">Volume：<code>{{raw.hostDataPath}}</code> → <code>{{raw.containerDataPath}}</code></div>
-          <div v-if="raw.envFile" class="inline-note" style="margin:8px 0 0">Env：<code>{{raw.envFile}}</code> · <strong>{{artifactRuntime?.envFileReady?'服务器文件存在':'服务器文件不存在'}}</strong></div>
+          <div class="runtime-facts"><div><span>Host Port</span><strong>{{project.hostPort||'-'}}</strong></div><div><span>Container Port</span><strong>{{project.containerPort||'-'}}</strong></div><div><span>CPU</span><strong>{{raw.cpuLimit||'不限'}}</strong></div><div><span>Memory</span><strong>{{raw.memoryLimit||'不限'}}</strong></div><div><span>Health</span><strong>{{raw.healthCheckPath||'未配置'}}</strong></div><div><span>Environment</span><strong>{{artifactRuntime?.environmentManaged?`${artifactRuntime.environmentVariableCount||0} 个变量`:'未配置'}}</strong></div></div>
+          <div v-if="artifactRuntime?.environmentManaged" class="inline-note" style="margin:12px 0 0">环境变量由 FDP 托管。部署时自动写入 <code>{{artifactRuntime.managedEnvPath}}</code> 并通过 <code>docker run --env-file</code> 注入，无需手工登录服务器创建文件。</div>
+          <div v-else-if="raw.envFile" class="inline-note" style="margin:12px 0 0">这个项目仍在使用旧版服务器 Env：<code>{{raw.envFile}}</code>。进入“编辑配置”保存后即可迁移到 FDP 托管环境。</div>
+          <div v-if="raw.hostDataPath" class="inline-note" style="margin:8px 0 0">Volume：<code>{{raw.hostDataPath}}</code> → <code>{{raw.containerDataPath}}</code></div>
           <div class="runtime-actions"><button class="soft-button" :disabled="busy" @click="runtimeAction('restart')"><RotateCcw :size="14" />重启</button><button class="soft-button" :disabled="busy" @click="runtimeAction('stop')"><Square :size="14" />停止</button><button class="soft-button" :disabled="busy" @click="openLogs"><Terminal :size="14" />日志</button><button v-if="isArtifact" class="icon-button danger" :disabled="busy" @click="runtimeAction('remove')"><Trash2 :size="14" /></button></div>
         </article>
         <article class="panel log-card"><div class="panel-head"><div><h2>Container Logs</h2><p>{{windowsDryRun?'Windows 开发环境显示 DRY-RUN 或本地可用日志。':'最近 300 行。'}}</p></div><button class="soft-button" :disabled="busy" @click="openLogs"><RefreshCw :size="14" />刷新日志</button></div><pre>{{logs||'点击“日志”读取 Container 输出。'}}</pre></article>
@@ -165,13 +167,13 @@ onMounted(load)
         <article v-if="!isArtifact" class="panel info-card"><h3><GitBranch :size="17" />Codeup + Dockerfile</h3><dl><div><dt>Git</dt><dd class="break">{{raw.gitUrl}}</dd></div><div><dt>Branch</dt><dd>{{raw.gitBranch}}</dd></div><div><dt>Project Directory</dt><dd><code>{{raw.projectDirectory||'.'}}</code></dd></div><div><dt>Dockerfile</dt><dd><code>{{raw.dockerfilePath||'Dockerfile'}}</code></dd></div><div><dt>Build Context</dt><dd><code>{{raw.dockerBuildContext||'.'}}</code></dd></div><div><dt>Image</dt><dd><code>{{raw.imageName||'-'}}</code></dd></div></dl></article>
         <template v-else>
           <article class="panel info-card"><h3><FileArchive :size="17" />Flow / Packages</h3><dl><div><dt>Pipeline</dt><dd>{{raw.pipelineName||raw.pipelineId}}</dd></div><div><dt>Packages</dt><dd>{{raw.packageRepoName||raw.packageRepoId}}</dd></div><div><dt>Artifact</dt><dd><code>{{raw.artifactName}}</code></dd></div><div><dt>当前 Run</dt><dd><code>{{raw.currentRunId||'-'}}</code></dd></div></dl></article>
-          <article class="panel"><div class="panel-head"><div><h2>可部署版本</h2><p>选择成功 Flow Run 产出的 Packages 版本。部署时使用上方“Docker”页中的参数。</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>版本</th><th>Flow Run</th><th>更新时间</th><th>MD5</th><th>操作</th></tr></thead><tbody><tr v-for="r in releases" :key="r.runId"><td><strong>{{r.version}}</strong></td><td><code>#{{r.runId}}</code></td><td>{{time(r.updateTime||r.createTime)}}</td><td><code>{{r.md5||'-'}}</code></td><td><button class="primary-button" :disabled="busy!==''" @click="deployRelease(r)">{{windowsDryRun?'验证版本':'部署'}}</button></td></tr></tbody></table></div><div v-if="!releases.length" class="empty-state">暂无可部署版本。</div></article>
+          <article class="panel"><div class="panel-head"><div><h2>可部署版本</h2><p>选择成功 Flow Run 产出的 Packages 版本。部署会使用当前 FDP 中保存的 Docker 参数和环境变量。</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>版本</th><th>Flow Run</th><th>更新时间</th><th>MD5</th><th>操作</th></tr></thead><tbody><tr v-for="r in releases" :key="r.runId"><td><strong>{{r.version}}</strong></td><td><code>#{{r.runId}}</code></td><td>{{time(r.updateTime||r.createTime)}}</td><td><code>{{r.md5||'-'}}</code></td><td><button class="primary-button" :disabled="busy!==''" @click="deployRelease(r)">{{windowsDryRun?'验证版本':'部署'}}</button></td></tr></tbody></table></div><div v-if="!releases.length" class="empty-state">暂无可部署版本。</div></article>
         </template>
       </section>
 
       <section v-if="activeTab==='history'" class="panel">
         <div class="panel-head"><div><h2>部署记录</h2><p>查看这个 Container 的部署历史。</p></div></div>
-        <div v-if="isArtifact" class="table-wrap"><table class="data-table"><thead><tr><th>版本</th><th>Run</th><th>状态</th><th>开始时间</th><th>结束时间</th></tr></thead><tbody><tr v-for="h in history" :key="h.id"><td><code>{{h.artifactVersion||'-'}}</code></td><td><code>#{{h.pipelineRunId||'-'}}</code></td><td><span class="tag">{{h.status}}</span></td><td>{{time(h.startTime)}}</td><td>{{time(h.endTime)}}</td></tr></tbody></table></div>
+        <div v-if="isArtifact" class="table-wrap"><table class="data-table"><thead><tr><th>版本</th><th>Run</th><th>状态</th><th>镜像</th><th>开始</th><th>结束</th></tr></thead><tbody><tr v-for="h in history" :key="h.id"><td><code>{{h.artifactVersion||'-'}}</code></td><td><code>{{h.pipelineRunId||'-'}}</code></td><td><span class="tag">{{h.status}}</span></td><td><code>{{h.imageTag||'-'}}</code></td><td>{{time(h.startTime)}}</td><td>{{time(h.endTime)}}</td></tr></tbody></table></div>
         <div v-else class="table-wrap"><table class="data-table"><thead><tr><th>Task</th><th>状态</th><th>Commit</th><th>开始时间</th><th>日志</th></tr></thead><tbody><tr v-for="d in deployments" :key="d.id"><td><code>#{{d.id}}</code></td><td><span class="tag">{{d.status}}</span></td><td><code>{{short(d.commit_id)}}</code></td><td>{{d.start_time||'-'}}</td><td><button class="link-button" @click="openDeploymentLogs(d)">查看</button></td></tr></tbody></table></div>
         <div v-if="(isArtifact&&!history.length)||(!isArtifact&&!deployments.length)" class="empty-state">暂无部署记录。</div>
       </section>
