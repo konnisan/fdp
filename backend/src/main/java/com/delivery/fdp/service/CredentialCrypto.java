@@ -1,5 +1,6 @@
 package com.delivery.fdp.service;
 
+import com.delivery.fdp.config.RuntimeProperties;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -9,30 +10,26 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Set;
 
 @Service
 public class CredentialCrypto {
     private static final int NONCE_BYTES = 12;
     private static final int TAG_BITS = 128;
+    private static final int KEY_BYTES = 32;
     private final byte[] keyBytes;
     private final SecureRandom random = new SecureRandom();
 
-    public CredentialCrypto(@Value("${fdp.security.credential-key:}") String encodedKey) {
-        if (!StringUtils.hasText(encodedKey)) {
-            this.keyBytes = null;
-            return;
-        }
-        try {
-            byte[] decoded = Base64.getDecoder().decode(encodedKey.trim());
-            if (decoded.length != 32) {
-                throw new IllegalArgumentException("FDP_CREDENTIAL_KEY must be a Base64 encoded 32-byte key");
-            }
-            this.keyBytes = decoded;
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid FDP_CREDENTIAL_KEY: " + e.getMessage(), e);
-        }
+    public CredentialCrypto(@Value("${fdp.security.credential-key:}") String encodedKey,
+                            RuntimeProperties runtime) {
+        this.keyBytes = StringUtils.hasText(encodedKey)
+                ? decode(encodedKey.trim(), "FDP_CREDENTIAL_KEY")
+                : loadOrCreateLocalKey(runtime);
     }
 
     public boolean configured() {
@@ -40,7 +37,7 @@ public class CredentialCrypto {
     }
 
     public String encrypt(String plaintext) {
-        if (!StringUtils.hasText(plaintext)) throw new IllegalArgumentException("token is required");
+        if (!StringUtils.hasText(plaintext)) throw new IllegalArgumentException("value is required");
         requireConfigured();
         try {
             byte[] nonce = new byte[NONCE_BYTES];
@@ -74,9 +71,42 @@ public class CredentialCrypto {
         }
     }
 
-    private void requireConfigured() {
-        if (!configured()) {
-            throw new IllegalStateException("FDP_CREDENTIAL_KEY is not configured. Generate one with: openssl rand -base64 32");
+    private byte[] loadOrCreateLocalKey(RuntimeProperties runtime) {
+        try {
+            Path root = Path.of(runtime.getDataRoot()).toAbsolutePath().normalize();
+            Files.createDirectories(root);
+            Path file = root.resolve(".fdp-credential-key").normalize();
+            if (!file.startsWith(root)) throw new IllegalStateException("Invalid FDP key path");
+            if (Files.isRegularFile(file)) {
+                return decode(Files.readString(file, StandardCharsets.UTF_8).trim(), "local FDP key");
+            }
+            byte[] generated = new byte[KEY_BYTES];
+            random.nextBytes(generated);
+            Files.writeString(file, Base64.getEncoder().encodeToString(generated), StandardCharsets.UTF_8);
+            try {
+                Files.setPosixFilePermissions(file, Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+            } catch (UnsupportedOperationException ignored) {
+                // Windows development filesystem.
+            }
+            return generated;
+        } catch (Exception e) {
+            throw new IllegalStateException("FDP could not create its local encryption key under FDP_DATA_ROOT", e);
         }
+    }
+
+    private byte[] decode(String encoded, String source) {
+        try {
+            byte[] decoded = Base64.getDecoder().decode(encoded);
+            if (decoded.length != KEY_BYTES) {
+                throw new IllegalArgumentException(source + " must be a Base64 encoded 32-byte key");
+            }
+            return decoded;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid " + source + ": " + e.getMessage(), e);
+        }
+    }
+
+    private void requireConfigured() {
+        if (!configured()) throw new IllegalStateException("FDP encryption key is unavailable");
     }
 }
