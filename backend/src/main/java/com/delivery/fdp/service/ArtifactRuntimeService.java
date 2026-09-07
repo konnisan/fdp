@@ -3,6 +3,7 @@ package com.delivery.fdp.service;
 import com.delivery.fdp.config.RuntimeProperties;
 import com.delivery.fdp.repository.ArtifactDeliveryRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +29,7 @@ public class ArtifactRuntimeService {
         ArtifactDeliveryRepository.Project project = project(projectId);
         LinkedHashMap<String, Object> result = base(project);
         if (dryRun()) {
-            result.put("containerStatus", project.status());
+            result.put("containerStatus", project.currentVersion() == null ? "NOT_DEPLOYED" : project.status());
             result.put("runtimeMode", "DRY_RUN");
             result.put("message", "Windows / execution-disabled mode: container commands are previewed but not executed.");
             return result;
@@ -36,9 +37,12 @@ public class ArtifactRuntimeService {
         String command = "docker inspect -f '{{.State.Status}}|{{.Config.Image}}' " + ShellCommandSupport.quote(project.containerName());
         CommandExecutor.Result inspected = exec.execute(command, cwd());
         if (!inspected.success()) {
-            result.put("containerStatus", "NOT_FOUND");
+            boolean neverDeployed = !StringUtils.hasText(project.currentVersion()) && !StringUtils.hasText(project.currentImage());
+            result.put("containerStatus", neverDeployed ? "NOT_DEPLOYED" : "NOT_FOUND");
             result.put("runtimeMode", "LIVE");
-            result.put("message", inspected.output());
+            result.put("message", neverDeployed
+                    ? "该配置尚未部署任何版本。请到“来源与版本”选择制品版本并部署。"
+                    : "记录中存在已部署版本，但服务器上未找到对应 Container。可重新部署该版本恢复。\n" + inspected.output());
             return result;
         }
         String[] parts = inspected.output().trim().split("\\|", 2);
@@ -84,9 +88,9 @@ public class ArtifactRuntimeService {
                 Map.of("code", "VERIFY", "name", "校验制品与版本"),
                 Map.of("code", "PUBLISH_FRONTEND", "name", "发布前端静态资源到 Nginx"),
                 Map.of("code", "LOAD_IMAGE", "name", "加载项目专属后端 Docker Image"),
-                Map.of("code", "REPLACE_CONTAINER", "name", "替换项目后端 Container"),
-                Map.of("code", "HEALTH_CHECK", "name", "执行健康检查"),
-                Map.of("code", "REFRESH_ROUTE", "name", "刷新客户预览路由")
+                Map.of("code", "REPLACE_CONTAINER", "name", "按 FDP Docker 配置替换 Container"),
+                Map.of("code", "HEALTH_CHECK", "name", "执行配置的健康检查"),
+                Map.of("code", "REFRESH_ROUTE", "name", "刷新 8090 客户预览路由")
         ));
         return result;
     }
@@ -116,12 +120,28 @@ public class ArtifactRuntimeService {
         result.put("projectCode", project.projectCode());
         result.put("containerName", project.containerName());
         result.put("hostPort", project.hostPort());
+        result.put("containerPort", project.containerPort());
         result.put("previewPath", project.previewPath());
         result.put("image", project.currentImage());
         result.put("version", project.currentVersion());
         result.put("status", project.status());
         result.put("envFile", project.envFile());
+        result.put("envFileReady", envFileReady(project.envFile()));
+        result.put("cpuLimit", project.cpuLimit());
+        result.put("memoryLimit", project.memoryLimit());
+        result.put("hostDataPath", project.hostDataPath());
+        result.put("containerDataPath", project.containerDataPath());
+        result.put("healthCheckPath", project.healthCheckPath());
         return result;
+    }
+
+    private Boolean envFileReady(String envFile) {
+        if (!StringUtils.hasText(envFile)) return null;
+        try {
+            return Files.isRegularFile(Path.of(envFile).toAbsolutePath().normalize());
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private boolean dryRun() {
