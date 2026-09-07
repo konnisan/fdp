@@ -31,17 +31,23 @@ public class ManagedEnvironmentService {
         this.runtime = runtime;
     }
 
-    public void save(Long projectId, String content) {
-        project(projectId);
+    public void assertSavable(String content) {
         if (content == null) return;
         String normalized = normalize(content);
         validate(normalized);
+        if (StringUtils.hasText(normalized) && !crypto.configured()) {
+            throw new IllegalStateException("Docker 环境变量需要加密保存。请先为 FDP 配置一次 FDP_CREDENTIAL_KEY，然后即可直接在页面维护项目环境变量");
+        }
+    }
+
+    public void save(Long projectId, String content) {
+        project(projectId);
+        if (content == null) return;
+        assertSavable(content);
+        String normalized = normalize(content);
         if (!StringUtils.hasText(normalized)) {
             projects.updateEnvironmentCiphertext(projectId, null);
             return;
-        }
-        if (!crypto.configured()) {
-            throw new IllegalStateException("Docker 环境变量需要加密保存。请先为 FDP 配置一次 FDP_CREDENTIAL_KEY，然后即可直接在页面维护项目环境变量");
         }
         projects.updateEnvironmentCiphertext(projectId, crypto.encrypt(normalized));
     }
