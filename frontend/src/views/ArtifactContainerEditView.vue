@@ -50,7 +50,13 @@ async function save(){
   saving.value=true;error.value='';info.value=''
   try{
     if(!form.projectName||!form.previewPath||!form.hostPort||!form.containerPort||!form.containerName)throw new Error('项目名称、Container、宿主机端口、容器端口和访问 Path 必填')
-    const updated=await updateArtifactDeliveryProject(props.projectId,{...form,envFile:'',hostPort:Number(form.hostPort),containerPort:Number(form.containerPort)})
+    const hasManagedEnv=String(form.envContent||'').trim().length>0
+    const updated=await updateArtifactDeliveryProject(props.projectId,{
+      ...form,
+      envFile:hasManagedEnv?'':form.envFile,
+      hostPort:Number(form.hostPort),
+      containerPort:Number(form.containerPort)
+    })
     fill(updated);info.value=artifactRuntime.value?.containerStatus==='running'
       ? '配置已保存。当前运行中的 Container 不会被立即修改；重新部署一个版本后新配置生效。'
       : 'Docker 配置和环境变量已保存，下一次部署会直接使用。'
@@ -97,9 +103,9 @@ onMounted(load)
         <div class="panel-head"><div><h2><Settings2 :size="18" />Docker 环境变量</h2><p>直接在 FDP 中维护，不需要到服务器手工创建 env 文件。FDP 会在部署时自动生成并传给 Docker。</p></div><span class="tag">{{envCount}} 个变量</span></div>
         <label style="display:flex;flex-direction:column;gap:7px">环境变量（每行 KEY=VALUE）
           <textarea v-model="form.envContent" rows="12" spellcheck="false" placeholder="SPRING_PROFILES_ACTIVE=prod&#10;SPRING_DATASOURCE_URL=jdbc:mysql://...&#10;SPRING_DATASOURCE_USERNAME=...&#10;SPRING_DATASOURCE_PASSWORD=..." style="width:100%;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55"></textarea>
-          <small>保存后加密存入 FDP 数据库。部署时自动生成受管文件：<code>{{artifactRuntime?.managedEnvPath||runtime?.resolvedEnvRoot||'FDP env root'}}</code>。</small>
+          <small>保存后由 FDP 加密保存；部署时自动生成内部 env 文件并使用 <code>docker run --env-file</code> 注入。</small>
         </label>
-        <div v-if="raw.envFile" class="inline-note" style="margin-top:12px">检测到这个项目曾使用旧版服务器 Env：<code>{{raw.envFile}}</code>。保存本页后将切换为 FDP 托管环境，不再依赖这个服务器文件。</div>
+        <div v-if="raw.envFile&&!form.envContent.trim()" class="inline-note" style="margin-top:12px">这个项目仍保留旧版服务器 Env：<code>{{raw.envFile}}</code>。如果你现在不填写环境变量，旧配置不会被清除；填写并保存后会自动切换为 FDP 托管环境。</div>
       </section>
 
       <section class="panel project-create-form">
@@ -111,7 +117,7 @@ onMounted(load)
       </section>
 
       <section class="panel" style="padding:14px 18px;display:flex;justify-content:space-between;gap:12px;align-items:center">
-        <div class="inline-note" style="margin:0">可以在 Container 运行时保存配置；当前实例保持不变，重新部署版本后应用新 Docker 参数和环境变量。</div>
+        <div class="inline-note" style="margin:0">可以保存新的 Docker 配置；如果当前已有实例在运行，重新部署版本后应用新的参数和环境变量。</div>
         <button class="primary-button" :disabled="saving" @click="save"><Save :size="14" />{{saving?'保存中…':'保存配置'}}</button>
       </section>
     </template>
