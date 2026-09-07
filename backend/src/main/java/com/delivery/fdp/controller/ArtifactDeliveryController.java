@@ -6,6 +6,7 @@ import com.delivery.fdp.service.ArtifactDeliveryService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,6 +31,12 @@ public class ArtifactDeliveryController {
     @PostMapping("/projects")
     public ArtifactDeliveryRepository.Project create(@RequestBody ArtifactDeliveryProjectRequest request) {
         return service.create(request);
+    }
+
+    @PutMapping("/projects/{id}")
+    public ArtifactDeliveryRepository.Project update(@PathVariable Long id,
+                                                     @RequestBody ArtifactDeliveryProjectRequest request) {
+        return service.update(id, request);
     }
 
     @GetMapping("/projects/{id}/releases")
