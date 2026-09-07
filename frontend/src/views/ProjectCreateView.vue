@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ArrowLeft, Box, PackageCheck, Save, Server } from 'lucide-vue-next'
+import { ArrowLeft, Box, PackageCheck, Save, Settings2 } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import {
   createArtifactDeliveryProject,
@@ -21,7 +21,7 @@ const artifacts=ref([])
 const seed=ref(null)
 const form=reactive({
   projectCode:'',projectName:'',pipelineId:'',pipelineName:'',packageRepoId:'',packageRepoName:'',artifactName:'',
-  previewPath:'',hostPort:3201,containerPort:null,containerName:'',envFile:'',cpuLimit:'',memoryLimit:'',
+  previewPath:'',hostPort:3201,containerPort:null,containerName:'',envContent:'',envFile:'',cpuLimit:'',memoryLimit:'',
   hostDataPath:'',containerDataPath:'',healthCheckPath:''
 })
 
@@ -32,6 +32,7 @@ const previewUrl=computed(()=>{
   const host=window.location.hostname
   return form.previewPath?`${window.location.protocol}//${host}:${port}${form.previewPath}`:`${window.location.protocol}//${host}:${port}/<访问路径>`
 })
+const envCount=computed(()=>String(form.envContent||'').split(/\r?\n/).filter(line=>{const v=line.trim();return v&&!v.startsWith('#')}).length)
 function err(e){return e.response?.data?.message||e.message||'操作失败'}
 function slug(value){return String(value||'').toLowerCase().replace(/[^a-z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,50)}
 function deriveDefaults(){
@@ -55,7 +56,7 @@ async function save(){
     if(!form.projectName||!form.pipelineId||!form.packageRepoId||!form.artifactName||!form.previewPath||!form.hostPort||!form.containerPort||!form.containerName){
       throw new Error('请填写项目名称、Flow、Packages 制品、Container、宿主机端口、容器端口和访问 Path')
     }
-    const payload={...form,projectCode:'',hostPort:Number(form.hostPort),containerPort:Number(form.containerPort)}
+    const payload={...form,projectCode:'',envFile:'',hostPort:Number(form.hostPort),containerPort:Number(form.containerPort)}
     const created=await createArtifactDeliveryProject(payload)
     emit('navigate',`/containers/artifact/${created.id}`)
   }catch(e){error.value=err(e)}finally{saving.value=false}
@@ -88,7 +89,7 @@ onMounted(async()=>{
 
 <template>
   <div class="page-stack restructure-page">
-    <PageHeader title="新增容器部署" description="选择 Flow 已经产出的 Packages 制品，然后填写这台 FDP 服务器真正要使用的 Docker 参数。项目编码由平台内部自动生成，不需要人工维护。">
+    <PageHeader title="新增容器部署" description="选择 Flow 已经产出的 Packages 制品，然后直接在 FDP 中写好 Docker 运行参数和环境变量。保存后即可选择版本部署。">
       <template #actions><button class="soft-button" @click="emit('navigate','/containers')"><ArrowLeft :size="14" />返回容器部署</button></template>
     </PageHeader>
     <div v-if="error" class="error-banner">{{error}}</div>
@@ -106,28 +107,33 @@ onMounted(async()=>{
       </section>
 
       <section class="panel project-create-form">
-        <div class="panel-head"><div><h2><Box :size="18" />2. Docker 运行参数</h2><p>这里填写的就是最终 <code>docker run</code> 会使用的参数，不再从 Profile 推断。</p></div></div>
+        <div class="panel-head"><div><h2><Box :size="18" />2. Docker 运行参数</h2><p>这些值会直接参与服务器上的 <code>docker run</code>，不区分 Spring Boot、Node 或其他技术栈。</p></div></div>
         <div class="form-grid restructure-form-grid">
           <label>Container Name *<input v-model="form.containerName" placeholder="fdp-financial-system" /></label>
-          <label>宿主机端口 *<input v-model="form.hostPort" type="number" placeholder="3201" /><small>仅绑定 127.0.0.1，由 Nginx 转发，不直接暴露给客户。</small></label>
-          <label>容器端口 *<input v-model="form.containerPort" type="number" placeholder="Spring Boot 常见 8080 / Node 常见 3000" /><small>应用在 Container 内真正监听的端口。</small></label>
+          <label>宿主机端口 *<input v-model="form.hostPort" type="number" placeholder="3201" /><small>仅绑定 127.0.0.1，由 Nginx :{{runtime?.publicPort||8090}} 对外转发。</small></label>
+          <label>容器端口 *<input v-model="form.containerPort" type="number" placeholder="Spring Boot 常见 8080 / Node 常见 3000" /><small>应用在 Container 内实际监听的端口。</small></label>
           <label>Health Check Path<input v-model="form.healthCheckPath" placeholder="/actuator/health 或 /health，可留空" /></label>
           <label>CPU Limit<input v-model="form.cpuLimit" placeholder="1 或 0.5，可留空" /></label>
           <label>Memory Limit<input v-model="form.memoryLimit" placeholder="512m / 1g，可留空" /></label>
-
-          <div class="form-section-title span-2"><Server :size="15" /> 服务器环境</div>
-          <label class="span-2">服务器 Env 文件<input v-model="form.envFile" placeholder="/data/fdp/env/financial-system.env" /><small>这是 FDP Linux 服务器上已经存在的文件。平台不会在线生成或修改 env；部署时直接使用 <code>--env-file</code>。不需要环境变量可留空。</small></label>
           <label>Host Volume Path<input v-model="form.hostDataPath" placeholder="/data/fdp/data/financial-system" /></label>
           <label>Container Volume Path<input v-model="form.containerDataPath" placeholder="/app/data" /><small>SQLite 等需要持久化时成对填写；普通 Spring Boot + MySQL 可以留空。</small></label>
         </div>
       </section>
 
       <section class="panel project-create-form">
-        <div class="panel-head"><div><h2>3. 客户访问入口</h2><p>Nginx 对外端口由 FDP 系统统一管理，当前固定使用 <strong>{{runtime?.publicPort||8090}}</strong>。</p></div></div>
+        <div class="panel-head"><div><h2><Settings2 :size="18" />3. Docker 环境变量</h2><p>直接在 FDP 填写，不需要提前登录服务器创建 <code>.env</code> 文件。部署时 FDP 会自动生成受管 env 文件并传给 Docker。</p></div><span class="tag">{{envCount}} 个变量</span></div>
+        <label style="display:flex;flex-direction:column;gap:7px">环境变量（每行 KEY=VALUE）
+          <textarea v-model="form.envContent" rows="11" spellcheck="false" placeholder="SPRING_PROFILES_ACTIVE=prod&#10;SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/financial_system&#10;SPRING_DATASOURCE_USERNAME=financial_system&#10;SPRING_DATASOURCE_PASSWORD=your-password" style="width:100%;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55"></textarea>
+          <small>支持空行和以 # 开头的注释。内容会使用 FDP_CREDENTIAL_KEY 加密保存，不会写入 Git 或 Packages。</small>
+        </label>
+      </section>
+
+      <section class="panel project-create-form">
+        <div class="panel-head"><div><h2>4. 客户访问入口</h2><p>Nginx 对外端口由 FDP 系统统一管理，当前使用 <strong>{{runtime?.publicPort||8090}}</strong>。</p></div></div>
         <div class="form-grid restructure-form-grid">
           <label>访问 Path *<input v-model="form.previewPath" placeholder="/financial-system" /></label>
           <label>最终预览地址<input :value="previewUrl" readonly /></label>
-          <div class="inline-note span-2">客户访问 <code>:{{runtime?.publicPort||8090}}{{form.previewPath||'/...'}}</code>；Nginx 再把后端请求转发到 <code>127.0.0.1:{{form.hostPort||'宿主机端口'}}</code>。因此 8090 和 Container 的 Host Port 是两层不同的端口。</div>
+          <div class="inline-note span-2">客户访问 <code>:{{runtime?.publicPort||8090}}{{form.previewPath||'/...'}}</code>；Nginx 再把后端请求转发到 <code>127.0.0.1:{{form.hostPort||'宿主机端口'}}</code>。Host Port 不需要直接对外开放。</div>
         </div>
       </section>
 
