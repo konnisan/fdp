@@ -4,6 +4,7 @@ import com.delivery.fdp.dto.ManagedProjectRequest;
 import com.delivery.fdp.repository.ManagedProjectRepository;
 import com.delivery.fdp.service.ManagedProjectService;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/managed-projects")
 public class ManagedProjectController {
+    private static final String UNCONFIGURED_START_COMMAND = "__FDP_START_COMMAND_NOT_CONFIGURED__";
     private final ManagedProjectService service;
 
     public ManagedProjectController(ManagedProjectService service) { this.service = service; }
@@ -33,7 +35,11 @@ public class ManagedProjectController {
     public Map<String, Object> project(@PathVariable Long id) { return service.project(id); }
 
     @PostMapping
-    public Map<String, Object> create(@RequestBody ManagedProjectRequest request) { return service.create(request); }
+    public Map<String, Object> create(@RequestBody ManagedProjectRequest request) {
+        if (request == null) throw new IllegalArgumentException("request is required");
+        if (!StringUtils.hasText(request.getStartCommand())) request.setStartCommand(UNCONFIGURED_START_COMMAND);
+        return service.create(request);
+    }
 
     @PutMapping("/{id}")
     public Map<String, Object> update(@PathVariable Long id, @RequestBody ManagedProjectRequest request) { return service.update(id, request); }
@@ -51,13 +57,19 @@ public class ManagedProjectController {
     public Map<String, Object> deploy(@PathVariable Long id, @RequestBody ManagedProjectService.DeployRequest request) { return service.deploy(id, request); }
 
     @PostMapping("/{id}/start")
-    public Map<String, Object> start(@PathVariable Long id) { return service.start(id); }
+    public Map<String, Object> start(@PathVariable Long id) {
+        assertStartCommandConfigured(id);
+        return service.start(id);
+    }
 
     @PostMapping("/{id}/stop")
     public Map<String, Object> stop(@PathVariable Long id) { return service.stop(id); }
 
     @PostMapping("/{id}/restart")
-    public Map<String, Object> restart(@PathVariable Long id) { return service.restart(id); }
+    public Map<String, Object> restart(@PathVariable Long id) {
+        assertStartCommandConfigured(id);
+        return service.restart(id);
+    }
 
     @GetMapping("/{id}/runtime")
     public Map<String, Object> runtime(@PathVariable Long id) { return service.runtime(id); }
@@ -81,6 +93,14 @@ public class ManagedProjectController {
 
     @GetMapping("/runtime-images")
     public List<String> runtimeImages() { return service.runtimeImages(); }
+
+    private void assertStartCommandConfigured(Long id) {
+        Object value = service.project(id).get("startCommand");
+        String command = value == null ? "" : String.valueOf(value);
+        if (!StringUtils.hasText(command) || UNCONFIGURED_START_COMMAND.equals(command)) {
+            throw new IllegalStateException("项目尚未配置启动命令，请先在运行配置中设置启动命令");
+        }
+    }
 
     public record SqlRequest(String sql) {}
 }
