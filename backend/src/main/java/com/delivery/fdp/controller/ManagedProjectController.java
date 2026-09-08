@@ -3,6 +3,7 @@ package com.delivery.fdp.controller;
 import com.delivery.fdp.dto.ManagedProjectRequest;
 import com.delivery.fdp.repository.ManagedProjectRepository;
 import com.delivery.fdp.service.ManagedProjectService;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,8 +11,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -63,6 +67,14 @@ public class ManagedProjectController {
 
     @PostMapping("/{id}/sql")
     public Map<String, Object> sql(@PathVariable Long id, @RequestBody SqlRequest request) { return service.executeSql(id, request == null ? null : request.sql()); }
+
+    @PostMapping(value = "/{id}/sql-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Map<String, Object> sqlFile(@PathVariable Long id, @RequestParam("file") MultipartFile file) throws Exception {
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("SQL 文件不能为空");
+        String name = file.getOriginalFilename();
+        if (name == null || !name.toLowerCase().endsWith(".sql")) throw new IllegalArgumentException("只支持 .sql 文件");
+        return service.executeSql(id, new String(file.getBytes(), StandardCharsets.UTF_8));
+    }
 
     @PostMapping("/{id}/preview")
     public Map<String, Object> preview(@PathVariable Long id) { return service.switchPreview(id); }
