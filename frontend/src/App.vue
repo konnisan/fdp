@@ -10,6 +10,7 @@ import ContainerDetailView from './views/ContainerDetailView.vue'
 import ArtifactContainerEditView from './views/ArtifactContainerEditView.vue'
 import IntegrationsView from './views/IntegrationsView.vue'
 import ManagedProjectsView from './views/ManagedProjectsView.vue'
+import ManagedProjectCreateView from './views/ManagedProjectCreateView.vue'
 
 const path=ref(window.location.pathname||'/')
 function syncPath(){path.value=window.location.pathname||'/'}
@@ -17,7 +18,8 @@ function navigate(to){if(window.location.pathname!==to)window.history.pushState(
 
 const route=computed(()=>{
   const p=path.value
-  if(['/containers','/containers/new','/managed-projects'].includes(p))return{component:ManagedProjectsView,title:'项目部署'}
+  if(p==='/containers/new')return{component:ManagedProjectCreateView,title:'新建项目'}
+  if(['/containers','/managed-projects'].includes(p))return{component:ManagedProjectsView,title:'项目部署'}
 
   const editMatch=p.match(/^\/containers\/artifact\/(\d+)\/edit$/)
   if(editMatch)return{component:ArtifactContainerEditView,title:'旧版容器配置',props:{projectId:Number(editMatch[1])}}
