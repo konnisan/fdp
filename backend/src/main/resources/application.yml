@@ -25,6 +25,22 @@ fdp:
     nginx-config-file: ${FDP_NGINX_CONFIG_FILE:./runtime/nginx/fdp.conf}
     nginx-public-port: ${FDP_PUBLIC_PORT:8090}
     nginx-reload-command: ${FDP_NGINX_RELOAD_COMMAND:nginx -t && nginx -s reload}
+  managed:
+    project-root: ${FDP_PROJECT_ROOT:/data/fdp/projects}
+    docker-network: ${FDP_DOCKER_NETWORK:fdp-network}
+    workspace-mount: ${FDP_WORKSPACE_MOUNT:/workspace}
+    config-mount: ${FDP_CONFIG_MOUNT:/fdp}
+    mysql-host: ${FDP_PROJECT_DB_HOST:mysql}
+    mysql-port: ${FDP_PROJECT_DB_PORT:3306}
+    mysql-user: ${FDP_PROJECT_DB_USER:root}
+    mysql-password: ${FDP_PROJECT_DB_PASSWORD:${MYSQL_PASSWORD:123456}}
+    preview-nginx-container: ${FDP_PREVIEW_NGINX_CONTAINER:fdp-preview-nginx}
+    preview-nginx-config-file: ${FDP_PREVIEW_NGINX_CONFIG_FILE:/data/fdp/preview/nginx.conf}
+    runtime-images:
+      - ${FDP_RUNTIME_IMAGE_JAVA17:eclipse-temurin:17-jre}
+      - ${FDP_RUNTIME_IMAGE_JAVA21:eclipse-temurin:21-jre}
+      - ${FDP_RUNTIME_IMAGE_NODE20:node:20-bookworm-slim}
+      - ${FDP_RUNTIME_IMAGE_NODE22:node:22-bookworm-slim}
   static-source:
     enabled: ${FDP_STATIC_CODEUP_ENABLED:false}
     git-url: ${FDP_STATIC_CODEUP_GIT_URL:}
