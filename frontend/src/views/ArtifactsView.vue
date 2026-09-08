@@ -5,6 +5,7 @@ import PageHeader from '../components/PageHeader.vue'
 import { getYunxiaoStatus, listYunxiaoArtifacts, listYunxiaoRepositories } from '../api'
 
 const emit=defineEmits(['navigate'])
+const DRAFT_KEY='fdp-managed-project-draft'
 const status=ref(null)
 const repositories=ref([])
 const selectedRepo=ref(null)
@@ -37,13 +38,20 @@ async function openRepo(repo){
 }
 function deployArtifact(a){
   const latest=a.versions?.[0]||{}
-  sessionStorage.setItem('fdp-container-artifact-seed',JSON.stringify({
-    repoId:selectedRepo.value?.repoId||'',
-    repoName:selectedRepo.value?.repoName||'',
+  let draft={artifacts:[]}
+  try{draft=JSON.parse(sessionStorage.getItem(DRAFT_KEY)||'{"artifacts":[]}')||draft}catch{}
+  if(!Array.isArray(draft.artifacts))draft.artifacts=[]
+  const selected={
+    repositoryId:String(selectedRepo.value?.repoId||''),
+    repositoryName:selectedRepo.value?.repoName||'',
     artifactName:a.module||'',
     latestVersion:latest.version||'',
-    updatedAt:a.latestUpdate||null
-  }))
+    targetDirectory:'.'
+  }
+  const index=draft.artifacts.findIndex(item=>String(item.repositoryId||item.repoId||'')===selected.repositoryId&&String(item.artifactName||'')===selected.artifactName)
+  if(index>=0)draft.artifacts[index]={...draft.artifacts[index],...selected}
+  else draft.artifacts.push(selected)
+  sessionStorage.setItem(DRAFT_KEY,JSON.stringify(draft))
   emit('navigate','/containers/new')
 }
 
@@ -52,9 +60,8 @@ onMounted(load)
 
 <template>
   <div class="page-stack restructure-page">
-    <PageHeader title="制品仓库" description="查看 Flow 已经上传到云效 Packages 的构建产物。选择需要部署的制品后，交给“容器部署”配置 Docker 并运行。">
+    <PageHeader title="制品仓库" description="查看云效 Packages 中已经构建完成的制品。点击“部署”后，FDP 会把所选制品带入新建项目；具体版本仍在项目部署时选择。">
       <template #actions>
-        <button class="soft-button" @click="emit('navigate','/pipelines')">返回流水线</button>
         <button class="primary-button" :disabled="loading" @click="load"><RefreshCw :size="14" />{{loading?'读取中…':'刷新仓库'}}</button>
       </template>
     </PageHeader>
@@ -68,7 +75,7 @@ onMounted(load)
     </section>
 
     <section class="panel">
-      <div class="panel-head"><div><h2><Boxes :size="18" />制品仓库</h2><p>先选择仓库，再查看其中的 Artifact 与版本。</p></div></div>
+      <div class="panel-head"><div><h2><Boxes :size="18" />制品仓库</h2><p>先选择仓库，再从其中选择要绑定到项目的 Artifact。</p></div></div>
       <div class="table-wrap"><table class="data-table"><thead><tr><th>仓库</th><th>ID</th><th>类型</th><th>说明</th><th>操作</th></tr></thead><tbody>
         <tr v-for="repo in repositories" :key="repo.repoId"><td><strong>{{repo.repoName}}</strong></td><td><code>{{repo.repoId}}</code></td><td>{{repo.repoType}}</td><td>{{repo.repoDesc||'-'}}</td><td><button class="soft-button" @click="openRepo(repo)">查看制品</button></td></tr>
       </tbody></table></div>
@@ -90,7 +97,7 @@ onMounted(load)
               <td><code>{{a.versions?.[0]?.version||'-'}}</code></td>
               <td>{{time(a.latestUpdate)}}</td>
               <td>{{a.versions?.length||0}}</td>
-              <td><button class="primary-button" @click="deployArtifact(a)"><Box :size="14" />放入容器部署</button></td>
+              <td><button class="primary-button" @click="deployArtifact(a)"><Box :size="14" />部署</button></td>
             </tr>
           </tbody>
         </table>
