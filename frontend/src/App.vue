@@ -11,6 +11,7 @@ import ArtifactContainerEditView from './views/ArtifactContainerEditView.vue'
 import IntegrationsView from './views/IntegrationsView.vue'
 import ManagedProjectsView from './views/ManagedProjectsView.vue'
 import ManagedProjectCreateView from './views/ManagedProjectCreateView.vue'
+import ManagedProjectPreviewView from './views/ManagedProjectPreviewView.vue'
 
 const path=ref(window.location.pathname||'/')
 function syncPath(){path.value=window.location.pathname||'/'}
@@ -19,6 +20,8 @@ function navigate(to){if(window.location.pathname!==to)window.history.pushState(
 const route=computed(()=>{
   const p=path.value
   if(p==='/containers/new')return{component:ManagedProjectCreateView,title:'新建项目'}
+  const managedPreview=p.match(/^\/containers\/(\d+)\/preview$/)
+  if(managedPreview)return{component:ManagedProjectPreviewView,title:'项目预览',props:{projectId:Number(managedPreview[1])}}
   if(['/containers','/managed-projects'].includes(p))return{component:ManagedProjectsView,title:'项目部署'}
 
   const editMatch=p.match(/^\/containers\/artifact\/(\d+)\/edit$/)
@@ -30,7 +33,7 @@ const route=computed(()=>{
   const legacyPoc=p.match(/^\/poc-projects\/(\d+)$/)
   if(legacyPoc)return{component:ContainerDetailView,title:'旧版容器项目',props:{projectKind:'source',projectId:Number(legacyPoc[1])}}
 
-  if(p==='/pipelines')return{component:PipelinesView,title:'流水线（兼容）'}
+  if(p==='/pipelines')return{component:PipelinesView,title:'流水线'}
   if(['/artifacts','/yunxiao-artifacts'].includes(p))return{component:ArtifactsView,title:'制品仓库'}
   if(p==='/legacy-containers/new')return{component:ProjectCreateView,title:'旧版新增容器部署'}
   if(['/legacy-containers','/projects','/artifact-delivery'].includes(p))return{component:ProjectCenterView,title:'旧版容器部署'}
