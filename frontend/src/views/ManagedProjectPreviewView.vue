@@ -4,7 +4,6 @@ import { ArrowLeft, Database, ExternalLink, File, Folder, Monitor, PackageCheck,
 import PageHeader from '../components/PageHeader.vue'
 import ManagedArtifactDeploymentPanel from '../components/ManagedArtifactDeploymentPanel.vue'
 import { getManagedDirectory, getManagedProject, getManagedRuntimeImages, previewManagedProject, updateManagedProjectConfiguration } from '../api'
-import { updateManagedArtifactBindings } from '../managedProjectArtifactsApi'
 
 const props=defineProps({projectId:{type:Number,required:true}})
 const emit=defineEmits(['navigate'])
@@ -75,20 +74,21 @@ async function load(){
 async function save(){
   saving.value=true;error.value='';info.value=''
   try{
-    const configPayload={
+    const payload={
       projectName:form.projectName.trim(),databaseName:form.databaseName,runtimeImage:form.runtimeImage,
       workDirectory:form.workDirectory||'.',startCommand:form.startCommand,serviceMode:form.serviceMode,servicePort:Number(form.servicePort),
       nginxStaticDirectory:form.serviceMode==='NGINX'?form.nginxStaticDirectory:null,
       nginxApiPrefix:form.serviceMode==='NGINX'?form.nginxApiPrefix:'/api/',
-      nginxBackendPort:form.serviceMode==='NGINX'?Number(form.nginxBackendPort):null,envContent:form.envContent
+      nginxBackendPort:form.serviceMode==='NGINX'?Number(form.nginxBackendPort):null,envContent:form.envContent,
+      artifacts:artifactBindings.value.map((a,i)=>({
+        repositoryId:a.repositoryId,repositoryName:a.repositoryName,artifactName:a.artifactName,
+        targetDirectory:a.targetDirectory||'.',sortOrder:i
+      }))
     }
-    await updateManagedProjectConfiguration(props.projectId,configPayload)
-    const updated=await updateManagedArtifactBindings(props.projectId,artifactBindings.value.map((a,i)=>({
-      repositoryId:a.repositoryId,repositoryName:a.repositoryName,artifactName:a.artifactName,targetDirectory:a.targetDirectory||'.',sortOrder:i
-    })))
+    const updated=await updateManagedProjectConfiguration(props.projectId,payload)
     sessionStorage.removeItem(editDraftKey())
     applyProject(updated);artifactBindings.value=normalizeArtifacts(updated.artifacts);project.value=updated
-    info.value=form.startCommand.trim()?'项目配置和制品绑定已保存。':'项目配置和制品绑定已保存，但启动命令仍未配置。'
+    info.value=form.startCommand.trim()?'项目配置和制品绑定已原子保存。':'项目配置和制品绑定已原子保存，但启动命令仍未配置。'
   }catch(e){error.value=message(e)}finally{saving.value=false}
 }
 
