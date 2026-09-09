@@ -20,8 +20,8 @@ function navigate(to){if(window.location.pathname!==to)window.history.pushState(
 const route=computed(()=>{
   const p=path.value
   if(p==='/containers/new')return{component:ManagedProjectCreateView,title:'新建项目'}
-  const managedPreview=p.match(/^\/containers\/(\d+)\/preview$/)
-  if(managedPreview)return{component:ManagedProjectPreviewView,title:'项目预览',props:{projectId:Number(managedPreview[1])}}
+  const managedEdit=p.match(/^\/containers\/(\d+)\/(edit|preview)$/)
+  if(managedEdit)return{component:ManagedProjectPreviewView,title:'编辑项目',props:{projectId:Number(managedEdit[1])}}
   if(['/containers','/managed-projects'].includes(p))return{component:ManagedProjectsView,title:'项目部署'}
 
   const editMatch=p.match(/^\/containers\/artifact\/(\d+)\/edit$/)
