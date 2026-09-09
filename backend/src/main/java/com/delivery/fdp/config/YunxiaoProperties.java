@@ -11,6 +11,7 @@ public class YunxiaoProperties {
     private String organizationId;
     private String token;
     private int pageSize = 30;
+    private String packagesDownloadBaseUrl = "https://packages.aliyun.com";
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -22,4 +23,6 @@ public class YunxiaoProperties {
     public void setToken(String token) { this.token = token; }
     public int getPageSize() { return pageSize; }
     public void setPageSize(int pageSize) { this.pageSize = pageSize; }
+    public String getPackagesDownloadBaseUrl() { return packagesDownloadBaseUrl; }
+    public void setPackagesDownloadBaseUrl(String packagesDownloadBaseUrl) { this.packagesDownloadBaseUrl = packagesDownloadBaseUrl; }
 }
