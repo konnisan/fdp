@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { Eye, Play, Plus, RefreshCw, RotateCcw, Square } from 'lucide-vue-next'
+import { Pencil, Play, Plus, RefreshCw, RotateCcw, Square } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import {listManagedProjects,restartManagedProject,startManagedProject,stopManagedProject} from '../api'
 
@@ -18,7 +18,7 @@ onMounted(()=>{
 </script>
 
 <template><div class="page-stack restructure-page">
-<PageHeader title="项目部署" description="项目绑定 Packages 制品；FDP 负责下载、解压到 current、准备 Container，部署后由使用者人工启动。"><template #actions><button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="14"/>刷新</button><button class="primary-button" @click="emit('navigate','/containers/new')"><Plus :size="14"/>新增项目</button></template></PageHeader>
+<PageHeader title="项目部署" description="项目绑定 Packages 制品；FDP 负责下载、解压到 current、准备 Container。项目保存后可继续编辑启动命令、端口、Runtime 和环境变量。"><template #actions><button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="14"/>刷新</button><button class="primary-button" @click="emit('navigate','/containers/new')"><Plus :size="14"/>新增项目</button></template></PageHeader>
 <div v-if="error" class="error-banner">{{error}}</div><div v-if="info" class="success-banner">{{info}}</div>
 <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>项目</th><th>Database</th><th>Runtime</th><th>制品</th><th>Container</th><th>版本</th><th>状态</th><th>操作</th></tr></thead><tbody>
 <tr v-for="p in projects" :key="p.id">
@@ -29,6 +29,6 @@ onMounted(()=>{
 <td><code>{{p.containerName}}</code></td>
 <td><code>{{p.deployedVersionSummary||'未部署'}}</code><small class="cell-note">运行：{{p.runningVersionSummary||'-'}} <b v-if="p.pendingRestart">待重启</b></small></td>
 <td>{{p.deploymentStatus}}</td>
-<td><div class="row-actions"><button class="soft-button" :disabled="!startConfigured(p)" :title="startConfigured(p)?'启动项目':'请先配置启动命令'" @click="action(p.id,'start')"><Play :size="13"/>启动</button><button class="soft-button" @click="action(p.id,'stop')"><Square :size="13"/>停止</button><button class="soft-button" :disabled="!startConfigured(p)" @click="action(p.id,'restart')"><RotateCcw :size="13"/>重启</button><button class="soft-button" @click="emit('navigate',`/containers/${p.id}/preview`)"><Eye :size="13"/>预览/目录</button></div></td>
+<td><div class="row-actions"><button class="soft-button" @click="emit('navigate',`/containers/${p.id}/edit`)"><Pencil :size="13"/>编辑</button><button class="soft-button" :disabled="!startConfigured(p)" :title="startConfigured(p)?'启动项目':'请先在编辑项目中配置启动命令'" @click="action(p.id,'start')"><Play :size="13"/>启动</button><button class="soft-button" @click="action(p.id,'stop')"><Square :size="13"/>停止</button><button class="soft-button" :disabled="!startConfigured(p)" @click="action(p.id,'restart')"><RotateCcw :size="13"/>重启</button></div></td>
 </tr></tbody></table></div><div v-if="!projects.length" class="empty-state">{{loading?'加载中…':'暂无项目。点击“新增项目”，然后从制品仓库选择项目制品。'}}</div></section>
 </div></template>
