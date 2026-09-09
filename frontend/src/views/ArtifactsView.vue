@@ -6,6 +6,8 @@ import { getYunxiaoStatus, listYunxiaoArtifacts, listYunxiaoRepositories } from 
 
 const emit=defineEmits(['navigate'])
 const DRAFT_KEY='fdp-managed-project-draft'
+const PICK_TARGET_KEY='fdp-artifact-selection-target'
+const EDIT_DRAFT_PREFIX='fdp-managed-project-edit-draft-'
 const status=ref(null)
 const repositories=ref([])
 const selectedRepo=ref(null)
@@ -18,8 +20,24 @@ const filtered=computed(()=>{
   const q=keyword.value.trim().toLowerCase()
   return q?artifacts.value.filter(a=>`${a.module||''} ${a.organization||''}`.toLowerCase().includes(q)):artifacts.value
 })
+const pickTarget=computed(()=>readPickTarget())
 function time(v){if(!v)return '-';const n=Number(v);return Number.isFinite(n)?new Date(n).toLocaleString():String(v)}
 function err(e){return e.response?.data?.message||e.message||'操作失败'}
+function readJson(key,fallback){try{return JSON.parse(sessionStorage.getItem(key)||'')||fallback}catch{return fallback}}
+function readPickTarget(){
+  const value=readJson(PICK_TARGET_KEY,null)
+  if(!value||!value.mode)return null
+  if(value.createdAt&&Date.now()-Number(value.createdAt)>30*60*1000){sessionStorage.removeItem(PICK_TARGET_KEY);return null}
+  return value
+}
+function editDraftKey(id){return `${EDIT_DRAFT_PREFIX}${id}`}
+function appendArtifact(list,selected){
+  const items=Array.isArray(list)?[...list]:[]
+  const index=items.findIndex(item=>String(item.repositoryId||item.repoId||'')===selected.repositoryId&&String(item.artifactName||'')===selected.artifactName)
+  if(index>=0)items[index]={...items[index],...selected}
+  else items.push(selected)
+  return items.map((item,index)=>({...item,sortOrder:index}))
+}
 async function load(){
   loading.value=true;error.value=''
   try{
@@ -38,9 +56,6 @@ async function openRepo(repo){
 }
 function deployArtifact(a){
   const latest=a.versions?.[0]||{}
-  let draft={artifacts:[]}
-  try{draft=JSON.parse(sessionStorage.getItem(DRAFT_KEY)||'{"artifacts":[]}')||draft}catch{}
-  if(!Array.isArray(draft.artifacts))draft.artifacts=[]
   const selected={
     repositoryId:String(selectedRepo.value?.repoId||''),
     repositoryName:selectedRepo.value?.repoName||'',
@@ -48,10 +63,28 @@ function deployArtifact(a){
     latestVersion:latest.version||'',
     targetDirectory:'.'
   }
-  const index=draft.artifacts.findIndex(item=>String(item.repositoryId||item.repoId||'')===selected.repositoryId&&String(item.artifactName||'')===selected.artifactName)
-  if(index>=0)draft.artifacts[index]={...draft.artifacts[index],...selected}
-  else draft.artifacts.push(selected)
+  const target=readPickTarget()
+
+  if(target?.mode==='edit'&&target.projectId){
+    const key=editDraftKey(target.projectId)
+    const draft=readJson(key,{form:null,artifacts:[]})
+    draft.artifacts=appendArtifact(draft.artifacts,selected)
+    sessionStorage.setItem(key,JSON.stringify(draft))
+    sessionStorage.removeItem(PICK_TARGET_KEY)
+    emit('navigate',`/containers/${target.projectId}/edit`)
+    return
+  }
+
+  let draft
+  if(target?.mode==='create'){
+    draft=readJson(DRAFT_KEY,{artifacts:[]})
+  }else{
+    // 从制品仓库直接点“部署”代表开始一个全新的项目，不继承上一次新建草稿。
+    draft={artifacts:[]}
+  }
+  draft.artifacts=appendArtifact(draft.artifacts,selected)
   sessionStorage.setItem(DRAFT_KEY,JSON.stringify(draft))
+  sessionStorage.removeItem(PICK_TARGET_KEY)
   emit('navigate','/containers/new')
 }
 
@@ -60,12 +93,15 @@ onMounted(load)
 
 <template>
   <div class="page-stack restructure-page">
-    <PageHeader title="制品仓库" description="查看云效 Packages 中已经构建完成的制品。点击“部署”后，FDP 会把所选制品带入新建项目；具体版本仍在项目部署时选择。">
+    <PageHeader title="制品仓库" description="查看云效 Packages 中已经构建完成的制品。制品可以带入新建项目，也可以绑定到已有项目。">
       <template #actions>
         <button class="primary-button" :disabled="loading" @click="load"><RefreshCw :size="14" />{{loading?'读取中…':'刷新仓库'}}</button>
       </template>
     </PageHeader>
     <div v-if="error" class="error-banner">{{error}}</div>
+    <div v-if="pickTarget" class="success-banner">
+      {{pickTarget.mode==='edit'?`正在为项目 #${pickTarget.projectId} 添加制品`:'正在为新项目选择制品'}}。选择后会返回对应项目页面。
+    </div>
 
     <section v-if="status" class="panel" style="padding:15px 18px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
@@ -97,7 +133,7 @@ onMounted(load)
               <td><code>{{a.versions?.[0]?.version||'-'}}</code></td>
               <td>{{time(a.latestUpdate)}}</td>
               <td>{{a.versions?.length||0}}</td>
-              <td><button class="primary-button" @click="deployArtifact(a)"><Box :size="14" />部署</button></td>
+              <td><button class="primary-button" @click="deployArtifact(a)"><Box :size="14" />{{pickTarget?.mode==='edit'?'绑定到项目':'部署'}}</button></td>
             </tr>
           </tbody>
         </table>
