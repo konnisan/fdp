@@ -56,6 +56,7 @@ export const listManagedProjects=()=>http.get('/managed-projects').then(r=>r.dat
 export const getManagedProject=id=>http.get(`/managed-projects/${id}`).then(r=>r.data)
 export const createManagedProject=data=>http.post('/managed-projects',data).then(r=>r.data)
 export const updateManagedProject=(id,data)=>http.put(`/managed-projects/${id}`,data).then(r=>r.data)
+export const updateManagedProjectConfiguration=(id,data)=>http.put(`/managed-projects/${id}/configuration`,data).then(r=>r.data)
 export const deleteManagedProject=id=>http.delete(`/managed-projects/${id}`)
 export const getManagedRuntimeImages=()=>http.get('/managed-projects/runtime-images').then(r=>r.data)
 export const listManagedArtifacts=id=>http.get(`/managed-projects/${id}/artifacts`).then(r=>r.data)
