@@ -20,7 +20,6 @@ export const getDeploymentLogs=id=>http.get(`/deployments/${id}/logs`).then(r=>r
 
 export const getStaticCatalog=()=>http.get('/static-catalog').then(r=>r.data)
 export const refreshStaticCatalog=()=>http.post('/static-catalog/refresh').then(r=>r.data)
-export const getStaticProjectTree=projectName=>http.get(`/static-catalog/projects/${encodeURIComponent(projectName)}/tree`).then(r=>r.data)
 export const activateStaticProject=projectName=>http.post('/static-catalog/activate',{projectName}).then(r=>r.data)
 
 export const getYunxiaoStatus=()=>http.get('/yunxiao/status').then(r=>r.data)
@@ -64,6 +63,7 @@ export const listManagedArtifactVersions=(id,artifactId)=>http.get(`/managed-pro
 export const deployManagedProject=(id,data)=>http.post(`/managed-projects/${id}/deploy`,data).then(r=>r.data)
 export const getManagedRuntime=id=>http.get(`/managed-projects/${id}/runtime`).then(r=>r.data)
 export const getManagedLogs=id=>http.get(`/managed-projects/${id}/logs`).then(r=>r.data.content)
+export const getManagedDirectory=id=>http.get(`/managed-projects/${id}/directory`).then(r=>r.data)
 export const startManagedProject=id=>http.post(`/managed-projects/${id}/start`).then(r=>r.data)
 export const stopManagedProject=id=>http.post(`/managed-projects/${id}/stop`).then(r=>r.data)
 export const restartManagedProject=id=>http.post(`/managed-projects/${id}/restart`).then(r=>r.data)
