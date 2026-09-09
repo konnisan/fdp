@@ -30,10 +30,20 @@ async function loadVersions(){
     }
   }catch(e){error.value=message(e)}finally{loading.value=false}
 }
+function selectedVersionRow(artifact){
+  return (versions[artifact.id]||[]).find(v=>String(v.version||'')===String(selected[artifact.id]||''))||{}
+}
 async function materialize(){
   deploying.value=true;error.value='';info.value=''
   try{
-    const items=(props.artifacts||[]).map(a=>({artifactId:a.id,version:selected[a.id]}))
+    const items=(props.artifacts||[]).map(a=>{
+      const row=selectedVersionRow(a)
+      return {
+        artifactId:a.id,
+        version:selected[a.id],
+        downloadUrl:row.downloadUrl||row.downloadURL||row.url||null
+      }
+    })
     if(!items.length)throw new Error('当前项目没有绑定制品')
     const missing=items.find(item=>!item.version)
     if(missing)throw new Error('请为所有制品选择版本')
