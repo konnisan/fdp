@@ -19,7 +19,7 @@ const groups=[
 function active(path){
   if(path==='/pipelines')return props.activePath==='/pipelines'
   if(path==='/artifacts')return ['/artifacts','/yunxiao-artifacts'].includes(props.activePath)
-  if(path==='/containers')return props.activePath==='/containers'||props.activePath==='/containers/new'||props.activePath==='/managed-projects'||/^\/containers\/\d+\/preview$/.test(props.activePath)
+  if(path==='/containers')return props.activePath==='/containers'||props.activePath==='/containers/new'||props.activePath==='/managed-projects'||/^\/containers\/\d+\/(edit|preview)$/.test(props.activePath)
   if(path==='/previews')return ['/', '/previews','/static-previews'].includes(props.activePath)
   if(path==='/system')return ['/system','/integrations','/runtime','/dashboard'].includes(props.activePath)
   return props.activePath===path
