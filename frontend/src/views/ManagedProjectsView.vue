@@ -1,8 +1,8 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { Pencil, Play, Plus, RefreshCw, RotateCcw, Square } from 'lucide-vue-next'
+import { Pencil, Play, Plus, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
-import {listManagedProjects,restartManagedProject,startManagedProject,stopManagedProject} from '../api'
+import {deleteManagedProject,listManagedProjects,restartManagedProject,startManagedProject,stopManagedProject} from '../api'
 
 const emit=defineEmits(['navigate'])
 const projects=ref([]),loading=ref(false),error=ref(''),info=ref('')
@@ -15,6 +15,16 @@ function newProject(){
 }
 async function load(){loading.value=true;error.value='';try{projects.value=await listManagedProjects()}catch(e){error.value=err(e)}finally{loading.value=false}}
 async function action(id,type){error.value='';info.value='';try{if(type==='start')await startManagedProject(id);if(type==='stop')await stopManagedProject(id);if(type==='restart')await restartManagedProject(id);await load()}catch(e){error.value=err(e)}}
+async function removeProject(project){
+  if(!window.confirm(`确认删除项目“${project.projectName}”？\n\nFDP 会删除项目 Container 与项目 current/config 目录，但不会删除该项目创建的业务 Database。`))return
+  error.value='';info.value=''
+  try{
+    await deleteManagedProject(project.id)
+    sessionStorage.removeItem(`fdp-managed-project-edit-draft-${project.id}`)
+    info.value=`项目“${project.projectName}”已删除；业务 Database 已保留。`
+    await load()
+  }catch(e){error.value=err(e)}
+}
 onMounted(()=>{
   const flash=sessionStorage.getItem('fdp-managed-project-flash')
   if(flash){info.value=flash;sessionStorage.removeItem('fdp-managed-project-flash')}
@@ -34,6 +44,6 @@ onMounted(()=>{
 <td><code>{{p.containerName}}</code></td>
 <td><code>{{p.deployedVersionSummary||'未部署'}}</code><small class="cell-note">运行：{{p.runningVersionSummary||'-'}} <b v-if="p.pendingRestart">待重启</b></small></td>
 <td>{{p.deploymentStatus}}</td>
-<td><div class="row-actions"><button class="soft-button" @click="emit('navigate',`/containers/${p.id}/edit`)"><Pencil :size="13"/>编辑</button><button class="soft-button" :disabled="!startConfigured(p)" :title="startConfigured(p)?'启动项目':'请先在编辑项目中配置启动命令'" @click="action(p.id,'start')"><Play :size="13"/>启动</button><button class="soft-button" @click="action(p.id,'stop')"><Square :size="13"/>停止</button><button class="soft-button" :disabled="!startConfigured(p)" @click="action(p.id,'restart')"><RotateCcw :size="13"/>重启</button></div></td>
+<td><div class="row-actions"><button class="soft-button" @click="emit('navigate',`/containers/${p.id}/edit`)"><Pencil :size="13"/>编辑</button><button class="soft-button" :disabled="!startConfigured(p)" :title="startConfigured(p)?'启动项目':'请先在编辑项目中配置启动命令'" @click="action(p.id,'start')"><Play :size="13"/>启动</button><button class="soft-button" @click="action(p.id,'stop')"><Square :size="13"/>停止</button><button class="soft-button" :disabled="!startConfigured(p)" @click="action(p.id,'restart')"><RotateCcw :size="13"/>重启</button><button class="soft-button" style="color:#dc2626" @click="removeProject(p)"><Trash2 :size="13"/>删除</button></div></td>
 </tr></tbody></table></div><div v-if="!projects.length" class="empty-state">{{loading?'加载中…':'暂无项目。点击“新增项目”，然后从制品仓库选择项目制品。'}}</div></section>
 </div></template>
