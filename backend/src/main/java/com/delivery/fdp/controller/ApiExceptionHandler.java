@@ -19,7 +19,10 @@ public class ApiExceptionHandler {
     public Map<String, String> handleDatabase(DataAccessException e) {
         Throwable root = e.getMostSpecificCause();
         String detail = root == null ? message(e) : message(root);
-        return Map.of("message", "数据库结构或写入失败：" + detail + "。如果刚升级 Managed Project，请执行最新 migration_v11_managed_artifact_binding_compat.sql。");
+        String migration = detail.contains("Incorrect string value")
+                ? "migration_v12_managed_project_utf8mb4.sql"
+                : "migration_v11_managed_artifact_binding_compat.sql 和 migration_v12_managed_project_utf8mb4.sql";
+        return Map.of("message", "数据库结构或写入失败：" + detail + "。请执行最新 " + migration + "。");
     }
 
     private String message(Throwable e) {
