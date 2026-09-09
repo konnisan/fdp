@@ -8,6 +8,11 @@ const emit=defineEmits(['navigate'])
 const projects=ref([]),loading=ref(false),error=ref(''),info=ref('')
 function err(e){return e.response?.data?.message||e.message||'操作失败'}
 function startConfigured(project){return Boolean(project.startCommand)&&project.startCommand!=='__FDP_START_COMMAND_NOT_CONFIGURED__'}
+function newProject(){
+  sessionStorage.removeItem('fdp-managed-project-draft')
+  sessionStorage.removeItem('fdp-artifact-selection-target')
+  emit('navigate','/containers/new')
+}
 async function load(){loading.value=true;error.value='';try{projects.value=await listManagedProjects()}catch(e){error.value=err(e)}finally{loading.value=false}}
 async function action(id,type){error.value='';info.value='';try{if(type==='start')await startManagedProject(id);if(type==='stop')await stopManagedProject(id);if(type==='restart')await restartManagedProject(id);await load()}catch(e){error.value=err(e)}}
 onMounted(()=>{
@@ -18,7 +23,7 @@ onMounted(()=>{
 </script>
 
 <template><div class="page-stack restructure-page">
-<PageHeader title="项目部署" description="项目绑定 Packages 制品；FDP 负责下载、解压到 current、准备 Container。项目保存后可继续编辑启动命令、端口、Runtime 和环境变量。"><template #actions><button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="14"/>刷新</button><button class="primary-button" @click="emit('navigate','/containers/new')"><Plus :size="14"/>新增项目</button></template></PageHeader>
+<PageHeader title="项目部署" description="项目持久绑定 Packages 制品；FDP 负责下载、解压到 current、准备 Container。项目保存后可继续编辑制品、启动命令、端口、Runtime 和环境变量。"><template #actions><button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="14"/>刷新</button><button class="primary-button" @click="newProject"><Plus :size="14"/>新增项目</button></template></PageHeader>
 <div v-if="error" class="error-banner">{{error}}</div><div v-if="info" class="success-banner">{{info}}</div>
 <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>项目</th><th>Database</th><th>Runtime</th><th>制品</th><th>Container</th><th>版本</th><th>状态</th><th>操作</th></tr></thead><tbody>
 <tr v-for="p in projects" :key="p.id">
