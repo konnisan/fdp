@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +74,26 @@ public class ManagedProjectArtifactBindingService {
                         entry.getValue().id(), projectId);
             }
         }
+
+        refreshVersionSummaries(projectId);
+    }
+
+    private void refreshVersionSummaries(Long projectId) {
+        List<String> deployed = new ArrayList<>();
+        List<String> running = new ArrayList<>();
+        for (ManagedProjectRepository.ArtifactBinding binding : projects.artifacts(projectId)) {
+            if (StringUtils.hasText(binding.deployedVersion())) {
+                deployed.add(binding.artifactName() + "=" + binding.deployedVersion());
+            }
+            if (StringUtils.hasText(binding.runningVersion())) {
+                running.add(binding.artifactName() + "=" + binding.runningVersion());
+            }
+        }
+        jdbc.update("""
+                UPDATE managed_project
+                   SET deployed_version_summary=?,running_version_summary=?,update_time=NOW()
+                 WHERE id=?
+                """, blank(String.join(", ", deployed)), blank(String.join(", ", running)), projectId);
     }
 
     private String key(String repositoryId, String artifactName) {
