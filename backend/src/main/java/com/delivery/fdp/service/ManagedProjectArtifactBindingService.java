@@ -97,7 +97,8 @@ public class ManagedProjectArtifactBindingService {
     }
 
     private String key(String repositoryId, String artifactName) {
-        return String.valueOf(repositoryId) + "\u0000" + String.valueOf(artifactName);
+        String repo = String.valueOf(repositoryId);
+        return repo.length() + ":" + repo + String.valueOf(artifactName);
     }
 
     private String cleanRelative(String value) {
