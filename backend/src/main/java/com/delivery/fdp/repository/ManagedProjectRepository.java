@@ -146,7 +146,9 @@ public class ManagedProjectRepository {
 
     public Optional<String> environmentCiphertext(Long projectId) {
         return jdbc.query("SELECT env_content_ciphertext FROM managed_project WHERE id=?", (rs, row) -> rs.getString(1), projectId)
-                .stream().findFirst().filter(v -> v != null && !v.isBlank());
+                .stream()
+                .filter(v -> v != null && !v.isBlank())
+                .findFirst();
     }
 
     public void setPreviewProject(Long projectId) {
@@ -159,9 +161,18 @@ public class ManagedProjectRepository {
 
     public Optional<Long> previewProjectId() {
         return jdbc.query("SELECT setting_value FROM fdp_platform_setting WHERE setting_key='preview_project_id'", (rs, row) -> rs.getString(1))
-                .stream().findFirst().map(value -> {
-                    try { return Long.valueOf(value); } catch (NumberFormatException ignored) { return null; }
-                });
+                .stream()
+                .filter(value -> value != null && !value.isBlank())
+                .filter(value -> {
+                    try {
+                        Long.parseLong(value);
+                        return true;
+                    } catch (NumberFormatException ignored) {
+                        return false;
+                    }
+                })
+                .map(Long::valueOf)
+                .findFirst();
     }
 
     public void delete(Long id) {
