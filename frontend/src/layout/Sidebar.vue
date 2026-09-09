@@ -6,11 +6,11 @@ const emit=defineEmits(['navigate'])
 const groups=[
   {label:'交付',items:[
     {label:'流水线',path:'/pipelines',icon:GitBranch},
-    {label:'制品仓库',path:'/artifacts',icon:PackageSearch},
-    {label:'项目部署',path:'/containers',icon:Box}
+    {label:'制品仓库',path:'/artifacts',icon:PackageSearch}
   ]},
   {label:'项目入口',items:[
-    {label:'静态预览',path:'/previews',icon:Eye}
+    {label:'静态预览',path:'/previews',icon:Eye},
+    {label:'项目部署',path:'/containers',icon:Box}
   ]},
   {label:'平台',items:[
     {label:'系统信息',path:'/system',icon:Server}
@@ -19,7 +19,7 @@ const groups=[
 function active(path){
   if(path==='/pipelines')return props.activePath==='/pipelines'
   if(path==='/artifacts')return ['/artifacts','/yunxiao-artifacts'].includes(props.activePath)
-  if(path==='/containers')return ['/containers','/containers/new','/managed-projects'].includes(props.activePath)
+  if(path==='/containers')return props.activePath==='/containers'||props.activePath==='/containers/new'||props.activePath==='/managed-projects'||/^\/containers\/\d+\/preview$/.test(props.activePath)
   if(path==='/previews')return ['/', '/previews','/static-previews'].includes(props.activePath)
   if(path==='/system')return ['/system','/integrations','/runtime','/dashboard'].includes(props.activePath)
   return props.activePath===path
@@ -46,7 +46,7 @@ function active(path){
       <div class="sidebar-divider"></div>
       <div class="sidebar-status-row"><span>Runtime</span><strong>Docker</strong></div>
       <div class="sidebar-divider"></div>
-      <div class="sidebar-status-row"><span>Preview</span><strong>Local / Nginx</strong></div>
+      <div class="sidebar-status-row"><span>Preview</span><strong>Single Nginx</strong></div>
     </div>
   </aside>
 </template>
