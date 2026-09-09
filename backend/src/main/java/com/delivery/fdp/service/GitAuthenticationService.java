@@ -27,34 +27,29 @@ public class GitAuthenticationService {
     }
 
     public CommandExecutor.Result execute(Long credentialId, String command, Path cwd) {
-        if (credentialId == null || !runtime.isExecutionEnabled()) {
-            return executor.execute(command, cwd);
-        }
-
+        if (credentialId == null || !runtime.isExecutionEnabled()) return executor.execute(command, cwd);
         SourceCredentialRepository.CredentialSecret stored = credentials.findSecretById(credentialId)
                 .orElseThrow(() -> new IllegalArgumentException("Source credential not found: " + credentialId));
-        String token = crypto.decrypt(stored.encryptedSecret());
-        return execute(stored.cloneUsername(), token, command, cwd);
+        return execute(stored.cloneUsername(), crypto.decrypt(stored.encryptedSecret()), command, cwd);
     }
 
     public CommandExecutor.Result execute(String username, String token, String command, Path cwd) {
-        if (!runtime.isExecutionEnabled()) {
-            return executor.execute(command, cwd);
-        }
-        if (username == null || username.isBlank()) {
-            throw new IllegalArgumentException("Codeup HTTPS clone username is required");
-        }
-        if (token == null || token.isBlank()) {
-            throw new IllegalArgumentException("Codeup personal access token is required");
-        }
+        if (!runtime.isExecutionEnabled()) return executor.execute(command, cwd);
+        return executeAuthenticated(username, token, command, cwd, false);
+    }
+
+    public CommandExecutor.Result executeAlways(String username, String token, String command, Path cwd) {
+        return executeAuthenticated(username, token, command, cwd, true);
+    }
+
+    private CommandExecutor.Result executeAuthenticated(String username, String token, String command, Path cwd, boolean always) {
+        if (username == null || username.isBlank()) throw new IllegalArgumentException("Codeup HTTPS clone username is required");
+        if (token == null || token.isBlank()) throw new IllegalArgumentException("Codeup personal access token is required");
 
         Path askPass = null;
         try {
             boolean windows = ShellCommandSupport.windows();
-            askPass = Files.createTempFile(
-                    "fdp-git-askpass-",
-                    windows ? ".cmd" : ".sh"
-            );
+            askPass = Files.createTempFile("fdp-git-askpass-", windows ? ".cmd" : ".sh");
             if (windows) {
                 Files.writeString(askPass, """
                         @echo off
@@ -83,9 +78,7 @@ public class GitAuthenticationService {
                           *) printf '\\n' ;;
                         esac
                         """);
-                if (!askPass.toFile().setExecutable(true, true)) {
-                    throw new IllegalStateException("Unable to make temporary Git credential helper executable");
-                }
+                if (!askPass.toFile().setExecutable(true, true)) throw new IllegalStateException("Unable to make temporary Git credential helper executable");
             }
 
             Map<String, String> env = new HashMap<>();
@@ -93,27 +86,19 @@ public class GitAuthenticationService {
             env.put("GIT_TERMINAL_PROMPT", "0");
             env.put("FDP_GIT_USERNAME", username);
             env.put("FDP_GIT_TOKEN", token);
-
-            // Git for Windows normally enables Git Credential Manager globally.
-            // Disable all configured credential helpers for FDP child processes so
-            // Codeup authentication always comes from the server-side env values
-            // above and never opens an interactive GCM login dialog.
             env.put("GIT_CONFIG_COUNT", "1");
             env.put("GIT_CONFIG_KEY_0", "credential.helper");
             env.put("GIT_CONFIG_VALUE_0", "");
             env.put("GCM_INTERACTIVE", "Never");
 
-            CommandExecutor.Result result = executor.execute(command, cwd, env);
+            CommandExecutor.Result result = always
+                    ? executor.executeAlways(command, cwd, env)
+                    : executor.execute(command, cwd, env);
             return new CommandExecutor.Result(result.exitCode(), redact(result.output(), token));
         } catch (Exception e) {
             return new CommandExecutor.Result(-1, redact(e.getMessage(), token));
         } finally {
-            if (askPass != null) {
-                try {
-                    Files.deleteIfExists(askPass);
-                } catch (Exception ignored) {
-                }
-            }
+            if (askPass != null) try { Files.deleteIfExists(askPass); } catch (Exception ignored) {}
         }
     }
 
