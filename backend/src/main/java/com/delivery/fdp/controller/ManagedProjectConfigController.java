@@ -1,8 +1,7 @@
 package com.delivery.fdp.controller;
 
 import com.delivery.fdp.dto.ManagedProjectRequest;
-import com.delivery.fdp.service.ManagedProjectConfigService;
-import com.delivery.fdp.service.ManagedProjectService;
+import com.delivery.fdp.service.ManagedProjectEditService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,19 +13,15 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/managed-projects")
 public class ManagedProjectConfigController {
-    private final ManagedProjectConfigService configService;
-    private final ManagedProjectService projectService;
+    private final ManagedProjectEditService editService;
 
-    public ManagedProjectConfigController(ManagedProjectConfigService configService,
-                                          ManagedProjectService projectService) {
-        this.configService = configService;
-        this.projectService = projectService;
+    public ManagedProjectConfigController(ManagedProjectEditService editService) {
+        this.editService = editService;
     }
 
     @PutMapping("/{id}/configuration")
     public Map<String, Object> updateConfiguration(@PathVariable Long id,
                                                    @RequestBody ManagedProjectRequest request) {
-        configService.updateRuntimeConfig(id, request);
-        return projectService.project(id);
+        return editService.update(id, request);
     }
 }
