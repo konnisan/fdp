@@ -11,17 +11,8 @@ const loading=ref(true)
 const error=ref('')
 const images=ref([])
 const form=reactive({
-  projectName:'',
-  databaseName:'',
-  runtimeImage:'',
-  workDirectory:'.',
-  serviceMode:'DIRECT',
-  servicePort:8080,
-  nginxStaticDirectory:'frontend/dist',
-  nginxApiPrefix:'/api/',
-  nginxBackendPort:8080,
-  envContent:'',
-  artifacts:[]
+  projectName:'',databaseName:'',runtimeImage:'',workDirectory:'.',serviceMode:'DIRECT',servicePort:8080,
+  nginxStaticDirectory:'frontend/dist',nginxApiPrefix:'/api/',nginxBackendPort:8080,envContent:'',artifacts:[]
 })
 
 const hasArtifacts=computed(()=>form.artifacts.length>0)
@@ -34,12 +25,8 @@ function readDraft(){
         if(value[key]!==undefined&&value[key]!==null)form[key]=value[key]
       }
       form.artifacts=Array.isArray(value.artifacts)?value.artifacts.map((a,i)=>({
-        repositoryId:String(a.repositoryId||a.repoId||''),
-        repositoryName:a.repositoryName||a.repoName||'',
-        artifactName:a.artifactName||'',
-        latestVersion:a.latestVersion||'',
-        targetDirectory:a.targetDirectory||'.',
-        sortOrder:i
+        repositoryId:String(a.repositoryId||a.repoId||''),repositoryName:a.repositoryName||a.repoName||'',artifactName:a.artifactName||'',
+        latestVersion:a.latestVersion||'',targetDirectory:a.targetDirectory||'.',sortOrder:i
       })).filter(a=>a.repositoryId&&a.artifactName):[]
     }
   }catch{}
@@ -48,8 +35,7 @@ function persistDraft(){
   sessionStorage.setItem(DRAFT_KEY,JSON.stringify({
     projectName:form.projectName,databaseName:form.databaseName,runtimeImage:form.runtimeImage,workDirectory:form.workDirectory,
     serviceMode:form.serviceMode,servicePort:form.servicePort,nginxStaticDirectory:form.nginxStaticDirectory,
-    nginxApiPrefix:form.nginxApiPrefix,nginxBackendPort:form.nginxBackendPort,envContent:form.envContent,
-    artifacts:form.artifacts
+    nginxApiPrefix:form.nginxApiPrefix,nginxBackendPort:form.nginxBackendPort,envContent:form.envContent,artifacts:form.artifacts
   }))
 }
 function chooseArtifacts(){persistDraft();emit('navigate','/artifacts')}
@@ -62,53 +48,35 @@ async function save(){
     if(!form.runtimeImage)throw new Error('请选择 Runtime Image')
     if(!form.artifacts.length)throw new Error('请先从制品仓库选择至少一个制品')
     const payload={
-      projectName:form.projectName.trim(),
-      databaseName:form.databaseName.trim(),
-      runtimeImage:form.runtimeImage,
-      workDirectory:form.workDirectory||'.',
-      startCommand:'',
-      serviceMode:form.serviceMode,
-      servicePort:Number(form.servicePort),
+      projectName:form.projectName.trim(),databaseName:form.databaseName.trim(),runtimeImage:form.runtimeImage,
+      workDirectory:form.workDirectory||'.',startCommand:'',serviceMode:form.serviceMode,servicePort:Number(form.servicePort),
       nginxStaticDirectory:form.serviceMode==='NGINX'?form.nginxStaticDirectory:null,
       nginxApiPrefix:form.serviceMode==='NGINX'?form.nginxApiPrefix:'/api/',
       nginxBackendPort:form.serviceMode==='NGINX'?Number(form.nginxBackendPort):null,
       envContent:form.envContent,
-      artifacts:form.artifacts.map((a,i)=>({
-        repositoryId:a.repositoryId,
-        repositoryName:a.repositoryName,
-        artifactName:a.artifactName,
-        targetDirectory:a.targetDirectory||'.',
-        sortOrder:i
-      }))
+      artifacts:form.artifacts.map((a,i)=>({repositoryId:a.repositoryId,repositoryName:a.repositoryName,artifactName:a.artifactName,targetDirectory:a.targetDirectory||'.',sortOrder:i}))
     }
-    await createManagedProject(payload)
+    const created=await createManagedProject(payload)
     sessionStorage.removeItem(DRAFT_KEY)
-    sessionStorage.setItem('fdp-managed-project-flash','项目已创建。启动命令请在项目创建后的运行配置中设置。')
-    emit('navigate','/containers')
+    emit('navigate',`/containers/${created.id}/edit`)
   }catch(e){error.value=err(e)}finally{saving.value=false}
 }
 
 watch(form,persistDraft,{deep:true})
 onMounted(async()=>{
   readDraft()
-  try{
-    images.value=await getManagedRuntimeImages()
-    if(!form.runtimeImage)form.runtimeImage=images.value[0]||''
-  }catch(e){error.value=err(e)}finally{loading.value=false}
+  try{images.value=await getManagedRuntimeImages();if(!form.runtimeImage)form.runtimeImage=images.value[0]||''}
+  catch(e){error.value=err(e)}finally{loading.value=false}
 })
 </script>
 
 <template>
   <div class="page-stack restructure-page">
-    <PageHeader title="新建项目" description="创建项目运行空间并绑定 Packages 制品。启动命令不在这里配置，项目创建后再进入运行配置维护。">
-      <template #actions>
-        <button class="soft-button" @click="emit('navigate','/containers')"><ArrowLeft :size="14"/>返回项目部署</button>
-      </template>
+    <PageHeader title="新建项目" description="创建项目运行空间并绑定 Packages 制品。启动命令不在这里配置；创建完成后会直接进入项目编辑页。">
+      <template #actions><button class="soft-button" @click="emit('navigate','/containers')"><ArrowLeft :size="14"/>返回项目部署</button></template>
     </PageHeader>
-
     <div v-if="error" class="error-banner">{{error}}</div>
     <div v-if="loading" class="panel empty-state">正在读取运行环境…</div>
-
     <template v-else>
       <section class="panel project-create-form">
         <div class="panel-head"><div><h2><Database :size="18"/>1. 项目基础配置</h2><p>一个项目固定绑定一个 database；项目名称全局唯一。</p></div></div>
@@ -116,15 +84,13 @@ onMounted(async()=>{
           <label>项目名称 *<input v-model="form.projectName" placeholder="financial-system"/></label>
           <label>Database *<input v-model="form.databaseName" placeholder="financial_system"/><small>创建后不可切换到其他 database。</small></label>
           <label>Runtime Image *<select v-model="form.runtimeImage"><option value="">请选择</option><option v-for="image in images" :key="image" :value="image">{{image}}</option></select></label>
-          <label>工作目录<input v-model="form.workDirectory" placeholder="."/><small><code>.</code> 表示 current/，也可以填写 current/ 下的相对子目录。</small></label>
+          <label>工作目录<input v-model="form.workDirectory" placeholder="."/><small><code>.</code> 表示 current/，创建后可以结合真实解压目录继续调整。</small></label>
         </div>
       </section>
 
       <section class="panel project-create-form">
         <div class="panel-head"><div><h2><PackageCheck :size="18"/>2. 项目制品</h2><p>制品只能从制品仓库选择。这里只配置解压位置，具体版本在每次部署时再选择。</p></div><button class="soft-button" @click="chooseArtifacts"><Plus :size="14"/>从制品仓库{{hasArtifacts?'继续选择':'选择制品'}}</button></div>
-        <div v-if="!hasArtifacts" class="empty-state">
-          当前还没有绑定制品。<button class="link-button" @click="chooseArtifacts">前往制品仓库选择</button>
-        </div>
+        <div v-if="!hasArtifacts" class="empty-state">当前还没有绑定制品。<button class="link-button" @click="chooseArtifacts">前往制品仓库选择</button></div>
         <div v-else style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
           <article v-for="(artifact,index) in form.artifacts" :key="`${artifact.repositoryId}-${artifact.artifactName}`" style="border:1px solid #e5e7eb;border-radius:8px;padding:14px;display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(180px,1fr) 160px 36px;gap:12px;align-items:end">
             <div><div style="font-size:10px;color:#94a3b8">Packages 制品</div><strong style="display:block;margin-top:5px">{{artifact.artifactName}}</strong><small class="cell-note">{{artifact.repositoryName||artifact.repositoryId}} · {{artifact.repositoryId}}</small></div>
@@ -136,17 +102,13 @@ onMounted(async()=>{
       </section>
 
       <section class="panel project-create-form">
-        <div class="panel-head"><div><h2><Server :size="18"/>3. 服务配置</h2><p>这里只确定 Container 如何对外提供一个项目服务端口，不填写应用启动命令。</p></div></div>
+        <div class="panel-head"><div><h2><Server :size="18"/>3. 服务配置</h2><p>这里只确定 Container 如何提供项目服务；启动命令在创建后的编辑页配置。</p></div></div>
         <div class="form-grid restructure-form-grid">
           <label>服务模式<select v-model="form.serviceMode"><option value="DIRECT">DIRECT · 应用直接服务</option><option value="NGINX">NGINX · 前端 + API 合并</option></select></label>
           <label>项目服务端口<input v-model="form.servicePort" type="number" min="1" max="65535"/></label>
-          <template v-if="form.serviceMode==='NGINX'">
-            <label>静态目录<input v-model="form.nginxStaticDirectory" placeholder="frontend/dist"/></label>
-            <label>API 前缀<input v-model="form.nginxApiPrefix" placeholder="/api/"/></label>
-            <label>后端端口<input v-model="form.nginxBackendPort" type="number" min="1" max="65535"/></label>
-          </template>
+          <template v-if="form.serviceMode==='NGINX'"><label>静态目录<input v-model="form.nginxStaticDirectory" placeholder="frontend/dist"/></label><label>API 前缀<input v-model="form.nginxApiPrefix" placeholder="/api/"/></label><label>后端端口<input v-model="form.nginxBackendPort" type="number" min="1" max="65535"/></label></template>
         </div>
-        <div class="inline-note" style="margin:0 20px 20px"><Settings2 :size="15"/>启动命令将在项目创建后的“运行配置”中维护，默认执行目录仍然从 <code>current/</code> 开始。</div>
+        <div class="inline-note" style="margin:0 20px 20px"><Settings2 :size="15"/>创建成功后会直接进入“编辑项目”，在那里查看 current/ 目录并填写启动命令。</div>
       </section>
 
       <section class="panel project-create-form">
@@ -157,10 +119,7 @@ onMounted(async()=>{
         </label>
       </section>
 
-      <section class="panel project-create-footer">
-        <button class="soft-button" @click="emit('navigate','/containers')">取消</button>
-        <button class="primary-button" :disabled="saving||!hasArtifacts" @click="save"><Save :size="14"/>{{saving?'创建中…':'创建项目'}}</button>
-      </section>
+      <section class="panel project-create-footer"><button class="soft-button" @click="emit('navigate','/containers')">取消</button><button class="primary-button" :disabled="saving||!hasArtifacts" @click="save"><Save :size="14"/>{{saving?'创建中…':'创建项目'}}</button></section>
     </template>
   </div>
 </template>
