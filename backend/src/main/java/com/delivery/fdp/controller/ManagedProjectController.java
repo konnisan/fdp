@@ -2,6 +2,7 @@ package com.delivery.fdp.controller;
 
 import com.delivery.fdp.dto.ManagedProjectRequest;
 import com.delivery.fdp.repository.ManagedProjectRepository;
+import com.delivery.fdp.service.ManagedProjectCreationService;
 import com.delivery.fdp.service.ManagedProjectService;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
@@ -25,8 +26,13 @@ import java.util.Map;
 public class ManagedProjectController {
     private static final String UNCONFIGURED_START_COMMAND = "__FDP_START_COMMAND_NOT_CONFIGURED__";
     private final ManagedProjectService service;
+    private final ManagedProjectCreationService creationService;
 
-    public ManagedProjectController(ManagedProjectService service) { this.service = service; }
+    public ManagedProjectController(ManagedProjectService service,
+                                    ManagedProjectCreationService creationService) {
+        this.service = service;
+        this.creationService = creationService;
+    }
 
     @GetMapping
     public List<Map<String, Object>> projects() { return service.projects(); }
@@ -38,7 +44,7 @@ public class ManagedProjectController {
     public Map<String, Object> create(@RequestBody ManagedProjectRequest request) {
         if (request == null) throw new IllegalArgumentException("request is required");
         if (!StringUtils.hasText(request.getStartCommand())) request.setStartCommand(UNCONFIGURED_START_COMMAND);
-        return service.create(request);
+        return creationService.create(request);
     }
 
     @PutMapping("/{id}")
