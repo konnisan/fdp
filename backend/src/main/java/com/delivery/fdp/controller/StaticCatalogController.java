@@ -2,7 +2,6 @@ package com.delivery.fdp.controller;
 
 import com.delivery.fdp.service.StaticCatalogService;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,11 +26,6 @@ public class StaticCatalogController {
     @PostMapping("/refresh")
     public Map<String, Object> refresh() {
         return catalog.refresh();
-    }
-
-    @GetMapping("/projects/{projectName}/tree")
-    public Map<String, Object> tree(@PathVariable String projectName) {
-        return catalog.projectTree(projectName);
     }
 
     @PostMapping("/activate")
