@@ -20,6 +20,7 @@ export const getDeploymentLogs=id=>http.get(`/deployments/${id}/logs`).then(r=>r
 
 export const getStaticCatalog=()=>http.get('/static-catalog').then(r=>r.data)
 export const refreshStaticCatalog=()=>http.post('/static-catalog/refresh').then(r=>r.data)
+export const getStaticProjectTree=projectName=>http.get(`/static-catalog/projects/${encodeURIComponent(projectName)}/tree`).then(r=>r.data)
 export const activateStaticProject=projectName=>http.post('/static-catalog/activate',{projectName}).then(r=>r.data)
 
 export const getYunxiaoStatus=()=>http.get('/yunxiao/status').then(r=>r.data)
