@@ -1,10 +1,11 @@
 <script setup>
-import { Box, ChevronRight, Eye, FolderKanban, PackageSearch, Server } from 'lucide-vue-next'
+import { Box, ChevronRight, Eye, FolderKanban, GitBranch, PackageSearch, Server } from 'lucide-vue-next'
 
 const props=defineProps({activePath:{type:String,required:true}})
 const emit=defineEmits(['navigate'])
 const groups=[
   {label:'交付',items:[
+    {label:'流水线',path:'/pipelines',icon:GitBranch},
     {label:'制品仓库',path:'/artifacts',icon:PackageSearch},
     {label:'项目部署',path:'/containers',icon:Box}
   ]},
@@ -16,6 +17,7 @@ const groups=[
   ]}
 ]
 function active(path){
+  if(path==='/pipelines')return props.activePath==='/pipelines'
   if(path==='/artifacts')return ['/artifacts','/yunxiao-artifacts'].includes(props.activePath)
   if(path==='/containers')return ['/containers','/containers/new','/managed-projects'].includes(props.activePath)
   if(path==='/previews')return ['/', '/previews','/static-previews'].includes(props.activePath)
@@ -44,7 +46,7 @@ function active(path){
       <div class="sidebar-divider"></div>
       <div class="sidebar-status-row"><span>Runtime</span><strong>Docker</strong></div>
       <div class="sidebar-divider"></div>
-      <div class="sidebar-status-row"><span>Preview</span><strong>Single Nginx</strong></div>
+      <div class="sidebar-status-row"><span>Preview</span><strong>Local / Nginx</strong></div>
     </div>
   </aside>
 </template>
