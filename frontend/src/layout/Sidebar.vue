@@ -3,12 +3,18 @@ import { Box, Eye, GitBranch, PackageSearch, Server } from 'lucide-vue-next'
 
 const props=defineProps({activePath:{type:String,required:true}})
 const emit=defineEmits(['navigate'])
-const items=[
-  {label:'流水线',path:'/pipelines',icon:GitBranch},
-  {label:'制品仓库',path:'/artifacts',icon:PackageSearch},
-  {label:'静态预览',path:'/previews',icon:Eye},
-  {label:'项目部署',path:'/containers',icon:Box},
-  {label:'系统信息',path:'/system',icon:Server}
+const groups=[
+  {label:'交付资源',items:[
+    {label:'流水线',path:'/pipelines',icon:GitBranch},
+    {label:'制品仓库',path:'/artifacts',icon:PackageSearch}
+  ]},
+  {label:'项目',items:[
+    {label:'静态预览',path:'/previews',icon:Eye},
+    {label:'项目部署',path:'/containers',icon:Box}
+  ]},
+  {label:'平台',items:[
+    {label:'系统信息',path:'/system',icon:Server}
+  ]}
 ]
 function active(path){
   if(path==='/pipelines')return props.activePath==='/pipelines'
@@ -27,11 +33,14 @@ function active(path){
       <span class="brand-copy"><strong>FDP</strong></span>
     </button>
 
-    <nav class="plane-nav">
-      <button v-for="item in items" :key="item.path" type="button" class="nav-item plane-nav-item" :class="{active:active(item.path)}" @click="emit('navigate',item.path)">
-        <span class="nav-icon plane-nav-icon"><component :is="item.icon" :size="17" /></span>
-        <span class="plane-nav-label">{{item.label}}</span>
-      </button>
+    <nav class="plane-nav plane-nav-grouped">
+      <section v-for="group in groups" :key="group.label" class="plane-nav-group">
+        <div class="plane-nav-group-title">{{group.label}}</div>
+        <button v-for="item in group.items" :key="item.path" type="button" class="nav-item plane-nav-item" :class="{active:active(item.path)}" @click="emit('navigate',item.path)">
+          <span class="nav-icon plane-nav-icon"><component :is="item.icon" :size="17" /></span>
+          <span class="plane-nav-label">{{item.label}}</span>
+        </button>
+      </section>
     </nav>
   </aside>
 </template>
