@@ -13,16 +13,16 @@ body{font-size:14px;color:#1f2937}
 .plane-topbar{height:58px}
 .plane-global-search{width:340px;height:36px}
 .plane-global-search input{font-size:13px;color:#374151}
-.plane-global-search input::placeholder{color:#94a3b8}
+.plane-global-search input::placeholder{color:#64748b}
 
 /* Page titles and controls */
 .page-heading h1{font-size:24px;color:#111827}
-.page-heading p{font-size:12px;color:#64748b}
+.page-heading p{font-size:12px;color:#475569}
 .soft-button,.primary-button,.outline-button,.link-button,.icon-button{min-height:34px;font-size:12px}
 .plane-edit-button{min-height:32px;font-size:12px}
 .plane-icon-action{width:32px;height:32px}
 .error-banner,.success-banner,.selection-context,.connection-strip,.inline-note{font-size:12px;color:#475569}
-.empty-state{font-size:12px;color:#64748b}
+.empty-state{font-size:12px;color:#475569}
 
 /* Summary filters */
 .plane-stat-filter{height:36px;padding:0 13px;font-size:12px;color:#475569}
@@ -31,20 +31,20 @@ body{font-size:14px;color:#1f2937}
 /* Panels and tables */
 .panel-head{min-height:60px;padding:14px 16px}
 .panel-head h2{font-size:14px;color:#1f2937}
-.panel-head p{font-size:11px;color:#64748b}
+.panel-head p{font-size:12px;color:#475569}
 .plane-panel-toolbar{height:54px}
 .plane-panel-tabs strong{font-size:13px}
-.plane-panel-tabs button{font-size:12px;color:#64748b}
-.plane-panel-meta,.table-meta{font-size:11px;color:#64748b}
+.plane-panel-tabs button{font-size:12px;color:#475569}
+.plane-panel-meta,.table-meta{font-size:12px;color:#475569}
 .data-table,.plane-table{font-size:12px}
 .data-table th{height:44px;padding:0 14px;font-size:12px;font-weight:600;color:#475569;background:#f8fafc}
 .data-table td{padding:13px 14px;color:#334155}
 .data-table strong{font-size:12px;color:#1f2937}
 .data-table code{min-height:22px;padding:2px 6px;font-size:11px;color:#475569}
-.cell-note{font-size:11px;color:#64748b}
+.cell-note{font-size:12px;color:#475569}
 .project-title-button{font-size:13px;color:#111827}
 .artifact-inline{font-size:12px;max-width:240px}
-.state-badge{min-height:25px;padding:0 8px;font-size:11px}
+.state-badge{min-height:26px;padding:0 8px;font-size:12px}
 .state-badge i{width:6px;height:6px}
 
 /* Artifact repository */
@@ -56,14 +56,14 @@ body{font-size:14px;color:#1f2937}
 .repository-item{min-height:48px;padding:8px 10px}
 .repository-item-copy strong{font-size:12px;color:#334155}
 .repository-item-icon{width:30px;height:30px}
-.rail-empty{font-size:12px;color:#64748b}
+.rail-empty{font-size:12px;color:#475569}
 .artifact-toolbar{min-height:58px;padding:10px 14px}
 .artifact-toolbar-title strong{font-size:13px;color:#1f2937}
 .artifact-search{height:34px;width:260px}
 .artifact-search input{font-size:12px}
 .artifact-file-icon{width:30px;height:30px}
 .artifact-name-cell{gap:9px}
-.artifact-placeholder{font-size:13px;color:#64748b}
+.artifact-placeholder{font-size:13px;color:#475569}
 
 /* Forms and editor pages */
 .form-grid label,.restructure-form-grid label{font-size:12px;color:#475569}
@@ -73,6 +73,6 @@ body{font-size:14px;color:#1f2937}
 .form-section-title{font-size:13px;color:#334155}
 .project-create-footer,.managed-project-savebar{font-size:12px}
 
-/* Never use micro-copy sizing in the active B theme. */
-.restructure-page small{font-size:11px;color:#64748b}
-.restructure-page .profile-badge,.restructure-page .tag,.restructure-page .type-badge{font-size:11px}
+/* No micro-copy in the active B theme. */
+.restructure-page small{font-size:12px;color:#475569}
+.restructure-page .profile-badge,.restructure-page .tag,.restructure-page .type-badge{font-size:12px}
