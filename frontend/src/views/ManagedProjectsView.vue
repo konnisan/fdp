@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { MoreHorizontal, Pencil, Play, Plus, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-vue-next'
+import { Pencil, Play, Plus, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import {deleteManagedProject,listManagedProjects,restartManagedProject,startManagedProject,stopManagedProject} from '../api'
 
@@ -22,10 +22,12 @@ const filteredProjects=computed(()=>{
   return projects.value
 })
 function statusLabel(project){
+  if(!startConfigured(project))return '待配置'
   const status=normalizedStatus(project)
-  return ({CREATED:'待配置',DEPLOYED:'已下载',RUNNING:'运行中',STOPPED:'已停止',FAILED:'失败',ERROR:'异常'})[status]||status
+  return ({CREATED:'待部署',DEPLOYED:'已部署',RUNNING:'运行中',STOPPED:'已停止',FAILED:'失败',ERROR:'异常'})[status]||status
 }
 function statusTone(project){
+  if(!startConfigured(project))return 'pending'
   const status=normalizedStatus(project)
   if(status==='RUNNING')return 'running'
   if(status==='DEPLOYED')return 'deployed'
@@ -33,6 +35,7 @@ function statusTone(project){
   if(status==='STOPPED')return 'stopped'
   return 'pending'
 }
+function artifactNames(project){return (project.artifacts||[]).map(a=>a.artifactName).filter(Boolean).join('、')||'未绑定'}
 function newProject(){
   sessionStorage.removeItem('fdp-managed-project-draft')
   sessionStorage.removeItem('fdp-artifact-selection-target')
@@ -41,12 +44,12 @@ function newProject(){
 async function load(){loading.value=true;error.value='';try{projects.value=await listManagedProjects()}catch(e){error.value=err(e)}finally{loading.value=false}}
 async function action(id,type){error.value='';info.value='';try{if(type==='start')await startManagedProject(id);if(type==='stop')await stopManagedProject(id);if(type==='restart')await restartManagedProject(id);await load()}catch(e){error.value=err(e)}}
 async function removeProject(project){
-  if(!window.confirm(`确认删除项目“${project.projectName}”？\n\nFDP 会删除项目 Container 与项目 current/config 目录，但不会删除该项目创建的业务 Database。`))return
+  if(!window.confirm(`确认删除项目“${project.projectName}”？\n\n不会删除该项目对应的业务 Database。`))return
   error.value='';info.value=''
   try{
     await deleteManagedProject(project.id)
     sessionStorage.removeItem(`fdp-managed-project-edit-draft-${project.id}`)
-    info.value=`项目“${project.projectName}”已删除；业务 Database 已保留。`
+    info.value=`项目“${project.projectName}”已删除。`
     await load()
   }catch(e){error.value=err(e)}
 }
@@ -59,10 +62,10 @@ onMounted(()=>{
 
 <template>
 <div class="page-stack restructure-page managed-projects-page plane-page">
-  <PageHeader title="项目部署" description="从制品选择到运行配置，集中管理当前交付项目。">
+  <PageHeader title="项目部署">
     <template #actions>
-      <button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="13"/>刷新</button>
-      <button class="primary-button" @click="newProject"><Plus :size="13"/>新增项目</button>
+      <button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="15"/>刷新</button>
+      <button class="primary-button" @click="newProject"><Plus :size="15"/>新增项目</button>
     </template>
   </PageHeader>
 
@@ -70,53 +73,38 @@ onMounted(()=>{
   <div v-if="info" class="success-banner">{{info}}</div>
 
   <div class="plane-stat-row" aria-label="项目筛选">
-    <button class="plane-stat-filter" :class="{active:activeFilter==='all'}" @click="activeFilter='all'"><span>全部项目</span><strong>{{stats.total}}</strong></button>
-    <button class="plane-stat-filter" :class="{active:activeFilter==='deployed'}" @click="activeFilter='deployed'"><span>已下载</span><strong>{{stats.deployed}}</strong></button>
+    <button class="plane-stat-filter" :class="{active:activeFilter==='all'}" @click="activeFilter='all'"><span>全部</span><strong>{{stats.total}}</strong></button>
+    <button class="plane-stat-filter" :class="{active:activeFilter==='deployed'}" @click="activeFilter='deployed'"><span>已部署</span><strong>{{stats.deployed}}</strong></button>
     <button class="plane-stat-filter" :class="{active:activeFilter==='running'}" @click="activeFilter='running'"><span>运行中</span><strong>{{stats.running}}</strong></button>
     <button class="plane-stat-filter" :class="{active:activeFilter==='pending'}" @click="activeFilter='pending'"><span>待处理</span><strong>{{stats.pending}}</strong></button>
   </div>
 
   <section class="panel managed-project-panel plane-data-panel">
-    <div class="plane-panel-toolbar">
-      <div class="plane-panel-tabs">
-        <strong>项目</strong>
-        <button :class="{active:activeFilter==='all'}" @click="activeFilter='all'">全部</button>
-        <button :class="{active:activeFilter==='running'}" @click="activeFilter='running'">运行中</button>
-        <button :class="{active:activeFilter==='pending'}" @click="activeFilter='pending'">需要处理</button>
-      </div>
-      <span class="plane-panel-meta">显示 {{filteredProjects.length}} / {{projects.length}}</span>
-    </div>
     <div class="table-wrap">
       <table class="data-table managed-projects-table plane-table">
-        <thead><tr><th>项目</th><th>Database</th><th>Runtime</th><th>制品</th><th>版本</th><th>状态</th><th class="actions-column">操作</th></tr></thead>
+        <thead><tr><th>项目</th><th>制品</th><th>版本</th><th>Runtime</th><th>Database</th><th>状态</th><th class="actions-column">操作</th></tr></thead>
         <tbody>
           <tr v-for="p in filteredProjects" :key="p.id">
-            <td class="project-primary-cell">
-              <button class="project-title-button" @click="emit('navigate',`/containers/${p.id}/edit`)">{{p.projectName}}</button>
-              <small class="cell-note">#{{String(p.id).padStart(2,'0')}} · current/</small>
-            </td>
+            <td><button class="project-title-button" @click="emit('navigate',`/containers/${p.id}/edit`)">{{p.projectName}}</button></td>
+            <td><span class="artifact-inline" :title="artifactNames(p)">{{artifactNames(p)}}</span></td>
+            <td><code>{{p.deployedVersionSummary||'未部署'}}</code></td>
+            <td>{{p.runtimeImage}}</td>
             <td><code>{{p.databaseName}}</code></td>
-            <td><span>{{p.runtimeImage}}</span><small class="cell-note">{{p.workDirectory||'.'}}</small></td>
-            <td><span>{{p.artifacts?.length||0}} 个</span><small class="cell-note artifact-inline">{{(p.artifacts||[]).map(a=>a.artifactName).join(' · ')||'未绑定'}}</small></td>
-            <td><code>{{p.deployedVersionSummary||'未部署'}}</code><small v-if="p.runningVersionSummary" class="cell-note">运行 {{p.runningVersionSummary}}</small></td>
-            <td><span class="state-badge" :data-state="statusTone(p)"><i></i>{{statusLabel(p)}}</span><small v-if="p.pendingRestart" class="cell-note pending-text">配置待重启</small></td>
+            <td><span class="state-badge" :data-state="statusTone(p)"><i></i>{{statusLabel(p)}}</span></td>
             <td class="actions-column">
               <div class="project-actions plane-project-actions">
-                <button class="soft-button plane-edit-button" @click="emit('navigate',`/containers/${p.id}/edit`)"><Pencil :size="12"/>编辑</button>
-                <button class="plane-icon-action" :disabled="!startConfigured(p)" :title="startConfigured(p)?'启动项目':'请先配置启动命令'" @click="action(p.id,'start')"><Play :size="14"/></button>
-                <button class="plane-icon-action" title="停止项目" @click="action(p.id,'stop')"><Square :size="12"/></button>
-                <button class="plane-icon-action" :disabled="!startConfigured(p)" title="重启项目" @click="action(p.id,'restart')"><RotateCcw :size="13"/></button>
-                <details class="plane-more-menu">
-                  <summary title="更多操作"><MoreHorizontal :size="15"/></summary>
-                  <div class="plane-menu-popover"><button class="danger-link" @click.prevent="removeProject(p)"><Trash2 :size="12"/>删除项目</button></div>
-                </details>
+                <button class="soft-button plane-edit-button" @click="emit('navigate',`/containers/${p.id}/edit`)"><Pencil :size="14"/>编辑</button>
+                <button class="plane-icon-action" :disabled="!startConfigured(p)" title="启动" @click="action(p.id,'start')"><Play :size="15"/></button>
+                <button class="plane-icon-action" title="停止" @click="action(p.id,'stop')"><Square :size="14"/></button>
+                <button class="plane-icon-action" :disabled="!startConfigured(p)" title="重启" @click="action(p.id,'restart')"><RotateCcw :size="15"/></button>
+                <button class="plane-icon-action danger-link" title="删除" @click="removeProject(p)"><Trash2 :size="15"/></button>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-    <div v-if="!filteredProjects.length" class="empty-state">{{loading?'正在读取项目…':'当前筛选下暂无项目。'}}</div>
+    <div v-if="!filteredProjects.length" class="empty-state">{{loading?'正在加载…':'暂无项目'}}</div>
   </section>
 </div>
 </template>
