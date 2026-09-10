@@ -14,7 +14,7 @@ defineEmits(['navigate'])
   <div class="app-shell">
     <AppSidebar :active-path="activePath" @navigate="$emit('navigate', $event)" />
     <div class="app-main">
-      <AppHeader :page-title="pageTitle" />
+      <AppHeader :page-title="pageTitle" @navigate="$emit('navigate', $event)" />
       <main class="app-content">
         <slot />
       </main>
