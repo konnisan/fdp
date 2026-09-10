@@ -24,19 +24,14 @@ function active(path){
   <aside class="sidebar plane-sidebar">
     <button class="brand plane-brand" type="button" @click="emit('navigate','/containers')">
       <span class="brand-mark plane-brand-mark">F</span>
-      <span class="brand-copy"><strong>Financial Delivery</strong><small>FDP Workspace</small></span>
+      <span class="brand-copy"><strong>FDP</strong></span>
     </button>
 
     <nav class="plane-nav">
       <button v-for="item in items" :key="item.path" type="button" class="nav-item plane-nav-item" :class="{active:active(item.path)}" @click="emit('navigate',item.path)">
-        <span class="nav-icon plane-nav-icon"><component :is="item.icon" :size="15" /></span>
+        <span class="nav-icon plane-nav-icon"><component :is="item.icon" :size="17" /></span>
         <span class="plane-nav-label">{{item.label}}</span>
       </button>
     </nav>
-
-    <div class="plane-sidebar-footer">
-      <span>Workspace · Internal Delivery</span>
-      <span>Packages / Docker / Nginx</span>
-    </div>
   </aside>
 </template>
