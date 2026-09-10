@@ -13,7 +13,7 @@ public class YunxiaoProperties {
     private int pageSize = 30;
     private String packagesDownloadBaseUrl = "https://packages.aliyun.com";
     private String packagesUsername;
-    private String packagesToken;
+    private String packagesPassword;
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -29,6 +29,6 @@ public class YunxiaoProperties {
     public void setPackagesDownloadBaseUrl(String packagesDownloadBaseUrl) { this.packagesDownloadBaseUrl = packagesDownloadBaseUrl; }
     public String getPackagesUsername() { return packagesUsername; }
     public void setPackagesUsername(String packagesUsername) { this.packagesUsername = packagesUsername; }
-    public String getPackagesToken() { return packagesToken; }
-    public void setPackagesToken(String packagesToken) { this.packagesToken = packagesToken; }
+    public String getPackagesPassword() { return packagesPassword; }
+    public void setPackagesPassword(String packagesPassword) { this.packagesPassword = packagesPassword; }
 }
