@@ -1,19 +1,33 @@
 <script setup>
-import { CircleCheck, Server } from 'lucide-vue-next'
+import { Search } from 'lucide-vue-next'
+import { ref } from 'vue'
 
 defineProps({ pageTitle: { type: String, default: '平台首页' } })
-
-const host = window.location.host || 'localhost:5173'
+const emit=defineEmits(['navigate'])
+const query=ref('')
+const routes=[
+  {keys:['项目','部署','容器'],path:'/containers'},
+  {keys:['制品','packages','artifact'],path:'/artifacts'},
+  {keys:['流水线','flow','pipeline'],path:'/pipelines'},
+  {keys:['静态','预览','poc'],path:'/previews'},
+  {keys:['系统','环境','runtime'],path:'/system'}
+]
+function submit(){
+  const q=query.value.trim().toLowerCase()
+  if(!q)return
+  const target=routes.find(item=>item.keys.some(key=>q.includes(key.toLowerCase())))
+  if(target){emit('navigate',target.path);query.value=''}
+}
 </script>
 
 <template>
-  <header class="topbar">
-    <div class="topbar-title-wrap">
-      <span class="topbar-kicker">FDP Console</span>
-      <div class="topbar-title">{{ pageTitle }}</div>
-    </div>
+  <header class="topbar plane-topbar">
+    <form class="plane-global-search" @submit.prevent="submit">
+      <Search :size="14" />
+      <input v-model="query" aria-label="页面搜索" placeholder="搜索项目、制品或流水线" />
+    </form>
     <div class="topbar-spacer"></div>
-    <div class="server-pill"><Server :size="14" /><span>{{ host }}</span></div>
-    <div class="running-pill"><CircleCheck :size="14" /><span>控制台在线</span></div>
+    <span class="plane-page-name">{{pageTitle}}</span>
+    <span class="plane-avatar" aria-label="当前用户">F</span>
   </header>
 </template>
