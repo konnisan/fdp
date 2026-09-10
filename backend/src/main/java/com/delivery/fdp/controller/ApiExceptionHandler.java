@@ -25,6 +25,23 @@ public class ApiExceptionHandler {
         return Map.of("message", "数据库结构或写入失败：" + detail + "。请执行最新 " + migration + "。");
     }
 
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, String> handleUnexpected(Exception e) {
+        Throwable root = rootCause(e);
+        return Map.of(
+                "message", "服务器处理失败：" + root.getClass().getSimpleName() + ": " + message(root)
+        );
+    }
+
+    private Throwable rootCause(Throwable value) {
+        Throwable current = value;
+        while (current != null && current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current == null ? value : current;
+    }
+
     private String message(Throwable e) {
         return e == null || e.getMessage() == null || e.getMessage().isBlank() ? "Request failed" : e.getMessage();
     }
