@@ -1,5 +1,5 @@
 <script setup>
-import { Server, Wifi } from 'lucide-vue-next'
+import { CircleCheck, Server } from 'lucide-vue-next'
 
 defineProps({ pageTitle: { type: String, default: '平台首页' } })
 
@@ -8,9 +8,12 @@ const host = window.location.host || 'localhost:5173'
 
 <template>
   <header class="topbar">
-    <div class="topbar-title">{{ pageTitle }}</div>
+    <div class="topbar-title-wrap">
+      <span class="topbar-kicker">FDP Console</span>
+      <div class="topbar-title">{{ pageTitle }}</div>
+    </div>
     <div class="topbar-spacer"></div>
-    <div class="server-pill"><Server :size="15" />服务器：{{ host }}</div>
-    <div class="running-pill"><Wifi :size="14" />运行中</div>
+    <div class="server-pill"><Server :size="14" /><span>{{ host }}</span></div>
+    <div class="running-pill"><CircleCheck :size="14" /><span>控制台在线</span></div>
   </header>
 </template>
