@@ -118,8 +118,8 @@ public class ManagedArtifactMaterializeService {
             result.put("windows", ShellCommandSupport.windows());
             result.put("containerPrepared", false);
             result.put("message", ShellCommandSupport.windows()
-                    ? "制品已通过 Packages 账户凭证下载并解压到 current；Windows 本地不会创建 Docker Container"
-                    : "制品已通过 Packages 账户凭证下载并解压到 current；Container 将在启动时按当前配置准备");
+                    ? "制品已通过 Packages 用户名/密码下载并解压到 current；Windows 本地不会创建 Docker Container"
+                    : "制品已通过 Packages 用户名/密码下载并解压到 current；Container 将在启动时按当前配置准备");
             return result;
         } catch (RuntimeException e) {
             repository.updateError(projectId, message(e));
@@ -142,8 +142,8 @@ public class ManagedArtifactMaterializeService {
             return new DownloadTarget(supplied, true);
         }
 
-        if (!StringUtils.hasText(yunxiao.getPackagesUsername()) || !StringUtils.hasText(yunxiao.getPackagesToken())) {
-            throw new IllegalStateException("未配置 Packages 下载账户。请设置 FDP_PACKAGES_USERNAME 和 FDP_PACKAGES_TOKEN（Packages 全局设置 → 账号管理中的个人/系统账号凭证）");
+        if (!StringUtils.hasText(yunxiao.getPackagesUsername()) || !StringUtils.hasText(yunxiao.getPackagesPassword())) {
+            throw new IllegalStateException("未配置 Generic Packages 下载账户。请设置 FDP_PACKAGES_USERNAME 和 FDP_PACKAGES_PASSWORD；这里填写 Packages 全局设置 → 账号管理中的“用户名”和“密码”，不要填写“个人token”");
         }
 
         String base = StringUtils.hasText(yunxiao.getPackagesDownloadBaseUrl())
@@ -165,7 +165,7 @@ public class ManagedArtifactMaterializeService {
                 .GET();
 
         if (!target.signedUrl()) {
-            String raw = yunxiao.getPackagesUsername().trim() + ":" + yunxiao.getPackagesToken();
+            String raw = yunxiao.getPackagesUsername().trim() + ":" + yunxiao.getPackagesPassword();
             String basic = Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
             builder.header("Authorization", "Basic " + basic);
         }
@@ -174,9 +174,9 @@ public class ManagedArtifactMaterializeService {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             Files.deleteIfExists(destination);
             if (response.statusCode() == 401 || response.statusCode() == 403) {
-                String auth = target.signedUrl() ? "签名下载地址" : "Packages 账户凭证";
+                String auth = target.signedUrl() ? "签名下载地址" : "Packages 用户名/密码 Basic Auth";
                 throw new IllegalStateException("Packages 下载鉴权失败（HTTP " + response.statusCode() + "，方式=" + auth
-                        + "）。请确认该 Packages 账号仍有效，并且该账号对应成员在目标仓库拥有下载权限。");
+                        + "）。如果网页可手动下载，请先确认 FDP_PACKAGES_USERNAME=账号用户名、FDP_PACKAGES_PASSWORD=账号密码，而不是个人token；若仍为 403，则需要按该仓库“仓库指南”的 Generic API 下载地址校正 FDP 下载 URL。");
             }
             throw new IllegalStateException("Packages 下载失败（HTTP " + response.statusCode() + "）：" + target.uri());
         }
