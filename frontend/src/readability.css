@@ -10,6 +10,10 @@ body{font-size:14px;color:#1f2937}
 .plane-nav-label{font-size:14px}
 .plane-nav-icon{width:24px;height:24px;color:#64748b!important}
 .plane-nav-item.active .plane-nav-icon{color:#374151!important}
+.plane-nav-grouped{gap:0;margin-top:16px}
+.plane-nav-group{display:flex;flex-direction:column;gap:4px;margin-bottom:18px}
+.plane-nav-group:last-child{margin-bottom:0}
+.plane-nav-group-title{padding:0 10px 6px;font-size:12px;font-weight:600;color:#64748b}
 .plane-topbar{height:58px}
 .plane-global-search{width:340px;height:36px}
 .plane-global-search input{font-size:13px;color:#374151}
