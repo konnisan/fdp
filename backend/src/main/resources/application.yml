@@ -57,6 +57,6 @@ fdp:
     page-size: ${FDP_YUNXIAO_PAGE_SIZE:30}
     packages-download-base-url: ${FDP_YUNXIAO_PACKAGES_DOWNLOAD_BASE_URL:https://packages.aliyun.com}
     packages-username: ${FDP_PACKAGES_USERNAME:}
-    packages-token: ${FDP_PACKAGES_TOKEN:${FDP_PACKAGES_PASSWORD:}}
+    packages-password: ${FDP_PACKAGES_PASSWORD:}
   security:
     credential-key: ${FDP_CREDENTIAL_KEY:}
