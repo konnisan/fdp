@@ -153,11 +153,20 @@ FDP_YUNXIAO_DOMAIN=openapi-rdc.aliyuncs.com
 FDP_YUNXIAO_ORGANIZATION_ID=6038b0d9eb45243512067136
 FDP_YUNXIAO_TOKEN=
 FDP_YUNXIAO_PAGE_SIZE=30
+
+# Packages 二进制制品下载账户
+# 来自 Packages -> 全局设置 -> 账号管理中的个人账号或系统账号。
+FDP_PACKAGES_USERNAME=
+FDP_PACKAGES_TOKEN=
 ```
 
-`FDP_YUNXIAO_TOKEN` 留空时会复用 `FDP_STATIC_CODEUP_TOKEN`。该 PAT 需要 Flow / Packages 读取权限。
+`FDP_YUNXIAO_TOKEN` 是云效 OpenAPI PAT，用于读取/运行 Flow、读取 Packages 仓库与制品元数据；留空时会复用 `FDP_STATIC_CODEUP_TOKEN`。
 
-不要把 Token 写入 Git URL 或提交到仓库。
+`FDP_PACKAGES_USERNAME` + `FDP_PACKAGES_TOKEN` 专门用于 Packages GENERIC 二进制制品下载。FDP 会按 `Authorization: Basic base64(username:token)` 请求 Packages 下载协议；这里的 `TOKEN` 是 Packages 独立账号的密钥/密码值，不是 `FDP_YUNXIAO_TOKEN`。为了兼容旧命名，也可以用 `FDP_PACKAGES_PASSWORD` 代替 `FDP_PACKAGES_TOKEN`。
+
+若云效版本数据已经返回带签名的 `downloadUrl`，FDP 优先直接使用签名 URL，不附加 Packages 账户凭证。
+
+不要把任何 Token、用户名密码写入 Git URL 或提交到仓库。
 
 ## 私有云运行环境
 
