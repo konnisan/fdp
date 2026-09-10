@@ -34,6 +34,9 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class ManagedArtifactMaterializeService {
+    private static final long SIGNED_URL_TTL_MILLIS = 10 * 60 * 1000L;
+    private static final String SIGNED_URL_HEADER = "x-artlab-generic-sign-url";
+
     private final ManagedProjectRepository repository;
     private final ManagedRuntimeProperties managed;
     private final YunxiaoProperties yunxiao;
@@ -56,8 +59,8 @@ public class ManagedArtifactMaterializeService {
         if (request == null || request.artifacts() == null || request.artifacts().isEmpty()) {
             throw new IllegalArgumentException("至少选择一个制品版本");
         }
-        if (!yunxiao.isEnabled() || !StringUtils.hasText(yunxiao.getOrganizationId()) || !StringUtils.hasText(yunxiao.getToken())) {
-            throw new IllegalStateException("云效 Packages OpenAPI 未配置，请检查 FDP_YUNXIAO_ENABLED / FDP_YUNXIAO_ORGANIZATION_ID / FDP_YUNXIAO_TOKEN");
+        if (!yunxiao.isEnabled() || !StringUtils.hasText(yunxiao.getOrganizationId())) {
+            throw new IllegalStateException("云效 Packages 未配置，请检查 FDP_YUNXIAO_ENABLED / FDP_YUNXIAO_ORGANIZATION_ID");
         }
 
         ReentrantLock lock = projectLocks.computeIfAbsent(projectId, ignored -> new ReentrantLock());
@@ -93,11 +96,11 @@ public class ManagedArtifactMaterializeService {
 
                 DownloadTarget targetInfo = resolveDownloadTarget(binding, selection);
                 Path archive = staging.resolve("artifact-" + index + ".package");
-                download(targetInfo, archive);
+                URI downloadedFrom = download(targetInfo, archive);
                 Path target = resolveTarget(stagedCurrent, binding.targetDirectory());
                 Files.createDirectories(target);
                 extract(archive, target);
-                resolved.add(new ResolvedSelection(binding, selection.version().trim(), targetInfo.uri()));
+                resolved.add(new ResolvedSelection(binding, selection.version().trim(), downloadedFrom));
                 index++;
             }
 
@@ -118,14 +121,14 @@ public class ManagedArtifactMaterializeService {
             result.put("windows", ShellCommandSupport.windows());
             result.put("containerPrepared", false);
             result.put("message", ShellCommandSupport.windows()
-                    ? "制品已通过 Packages 用户名/密码下载并解压到 current；Windows 本地不会创建 Docker Container"
-                    : "制品已通过 Packages 用户名/密码下载并解压到 current；Container 将在启动时按当前配置准备");
+                    ? "制品已按 Packages Generic API 获取签名地址并解压到 current；Windows 本地不会创建 Docker Container"
+                    : "制品已按 Packages Generic API 获取签名地址并解压到 current；Container 将在启动时按当前配置准备");
             return result;
         } catch (RuntimeException e) {
-            repository.updateError(projectId, message(e));
+            safeUpdateError(projectId, e);
             throw e;
         } catch (Exception e) {
-            repository.updateError(projectId, message(e));
+            safeUpdateError(projectId, e);
             throw new IllegalStateException("制品下载/解压失败: " + message(e), e);
         } finally {
             try { deleteRecursively(staging); } catch (Exception ignored) {}
@@ -136,52 +139,111 @@ public class ManagedArtifactMaterializeService {
                                                  MaterializeSelection selection) {
         if (StringUtils.hasText(selection.downloadUrl())) {
             URI supplied = URI.create(selection.downloadUrl().trim());
-            if (!"https".equalsIgnoreCase(supplied.getScheme())) {
-                throw new IllegalArgumentException("制品 downloadUrl 只允许 HTTPS");
-            }
-            return new DownloadTarget(supplied, true);
+            requireHttps(supplied, "制品 downloadUrl");
+            return new DownloadTarget(supplied, true, binding.artifactName());
         }
 
         if (!StringUtils.hasText(yunxiao.getPackagesUsername()) || !StringUtils.hasText(yunxiao.getPackagesPassword())) {
-            throw new IllegalStateException("未配置 Generic Packages 下载账户。请设置 FDP_PACKAGES_USERNAME 和 FDP_PACKAGES_PASSWORD；这里填写 Packages 全局设置 → 账号管理中的“用户名”和“密码”，不要填写“个人token”");
+            throw new IllegalStateException("未配置 Generic Packages 下载账户。请设置 FDP_PACKAGES_USERNAME 和 FDP_PACKAGES_PASSWORD，填写仓库指南中的用户名和密码");
         }
 
+        String filePath = normalizeFilePath(binding.artifactName());
         String base = StringUtils.hasText(yunxiao.getPackagesDownloadBaseUrl())
                 ? yunxiao.getPackagesDownloadBaseUrl().trim()
                 : "https://packages.aliyun.com";
-        URI uri = UriComponentsBuilder.fromHttpUrl(base)
-                .pathSegment("api", "protocol", yunxiao.getOrganizationId(), "generic",
-                        binding.repositoryId(), "files", binding.artifactName())
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(base)
+                .pathSegment("api", "protocol", yunxiao.getOrganizationId(), "generic", binding.repositoryId(), "files");
+        for (String part : filePath.split("/")) {
+            if (StringUtils.hasText(part)) builder.pathSegment(part);
+        }
+        URI uri = builder
                 .queryParam("version", selection.version().trim())
                 .build()
                 .encode()
                 .toUri();
-        return new DownloadTarget(uri, false);
+        return new DownloadTarget(uri, false, filePath);
     }
 
-    private void download(DownloadTarget target, Path destination) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder(target.uri())
+    /**
+     * Generic Packages guide protocol:
+     * 1) HEAD the file URL with Basic Auth + signUrl=true + expiration.
+     * 2) Read x-artlab-generic-sign-url.
+     * 3) GET the returned temporary signed URL without credentials.
+     */
+    private URI download(DownloadTarget target, Path destination) throws Exception {
+        URI downloadUri = target.signedUrl() ? target.uri() : createSignedDownloadUrl(target);
+        requireHttps(downloadUri, "Packages 下载地址");
+
+        HttpRequest request = HttpRequest.newBuilder(downloadUri)
                 .timeout(Duration.ofMinutes(10))
-                .GET();
-
-        if (!target.signedUrl()) {
-            String raw = yunxiao.getPackagesUsername().trim() + ":" + yunxiao.getPackagesPassword();
-            String basic = Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
-            builder.header("Authorization", "Basic " + basic);
-        }
-
-        HttpResponse<Path> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofFile(destination));
+                .GET()
+                .build();
+        HttpResponse<Path> response = http.send(request, HttpResponse.BodyHandlers.ofFile(destination));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             Files.deleteIfExists(destination);
-            if (response.statusCode() == 401 || response.statusCode() == 403) {
-                String auth = target.signedUrl() ? "签名下载地址" : "Packages 用户名/密码 Basic Auth";
-                throw new IllegalStateException("Packages 下载鉴权失败（HTTP " + response.statusCode() + "，方式=" + auth
-                        + "）。如果网页可手动下载，请先确认 FDP_PACKAGES_USERNAME=账号用户名、FDP_PACKAGES_PASSWORD=账号密码，而不是个人token；若仍为 403，则需要按该仓库“仓库指南”的 Generic API 下载地址校正 FDP 下载 URL。");
-            }
-            throw new IllegalStateException("Packages 下载失败（HTTP " + response.statusCode() + "）：" + target.uri());
+            throw new IllegalStateException("Packages 签名地址下载失败（HTTP " + response.statusCode()
+                    + "，filePath=" + target.filePath() + "）");
         }
         if (!Files.isRegularFile(destination) || Files.size(destination) == 0) {
-            throw new IllegalStateException("Packages 返回了空制品文件");
+            throw new IllegalStateException("Packages 返回了空制品文件（filePath=" + target.filePath() + "）");
+        }
+        return downloadUri;
+    }
+
+    private URI createSignedDownloadUrl(DownloadTarget target) throws Exception {
+        long expiration = System.currentTimeMillis() + SIGNED_URL_TTL_MILLIS;
+        URI signRequestUri = UriComponentsBuilder.fromUri(target.uri())
+                .queryParam("signUrl", "true")
+                .queryParam("expiration", expiration)
+                .build()
+                .encode()
+                .toUri();
+
+        String raw = yunxiao.getPackagesUsername().trim() + ":" + yunxiao.getPackagesPassword();
+        String basic = Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+        HttpRequest request = HttpRequest.newBuilder(signRequestUri)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Basic " + basic)
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<Void> response = http.send(request, HttpResponse.BodyHandlers.discarding());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                throw new IllegalStateException("Packages 签名地址申请失败（HTTP " + response.statusCode()
+                        + "，filePath=" + target.filePath()
+                        + "）。请核对仓库指南中的用户名/密码，并确认项目绑定的制品名称就是制品列表页中的完整包名");
+            }
+            if (response.statusCode() == 404) {
+                throw new IllegalStateException("Packages 文件不存在（HTTP 404，filePath=" + target.filePath()
+                        + "）。Generic API 的 filePath 必须是制品列表页中的完整包名，包含目录和文件名");
+            }
+            throw new IllegalStateException("Packages 签名地址申请失败（HTTP " + response.statusCode()
+                    + "，filePath=" + target.filePath() + "）");
+        }
+
+        String signed = response.headers().firstValue(SIGNED_URL_HEADER)
+                .orElseThrow(() -> new IllegalStateException("Packages HEAD 请求成功，但响应缺少 "
+                        + SIGNED_URL_HEADER + "，filePath=" + target.filePath()));
+        URI signedUri = URI.create(signed.trim());
+        requireHttps(signedUri, "Packages 临时免密下载地址");
+        return signedUri;
+    }
+
+    private String normalizeFilePath(String value) {
+        if (!StringUtils.hasText(value)) throw new IllegalArgumentException("Packages filePath 不能为空");
+        String path = value.trim().replace('\\', '/');
+        while (path.startsWith("/")) path = path.substring(1);
+        if (!StringUtils.hasText(path) || path.contains("../") || path.equals("..") || path.contains("?") || path.contains("&")) {
+            throw new IllegalArgumentException("Packages filePath 非法: " + value);
+        }
+        return path;
+    }
+
+    private void requireHttps(URI uri, String label) {
+        if (uri == null || !"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new IllegalArgumentException(label + " 只允许 HTTPS");
         }
     }
 
@@ -287,12 +349,20 @@ public class ManagedArtifactMaterializeService {
         }
     }
 
+    private void safeUpdateError(Long projectId, Throwable error) {
+        try {
+            repository.updateError(projectId, message(error));
+        } catch (Exception ignored) {
+            // Preserve the original materialization error instead of masking it with a secondary DB failure.
+        }
+    }
+
     private String message(Throwable error) {
         return error == null || error.getMessage() == null ? String.valueOf(error) : error.getMessage();
     }
 
     public record MaterializeSelection(Long artifactId, String version, String downloadUrl) {}
     public record MaterializeRequest(List<MaterializeSelection> artifacts) {}
-    private record DownloadTarget(URI uri, boolean signedUrl) {}
+    private record DownloadTarget(URI uri, boolean signedUrl, String filePath) {}
     private record ResolvedSelection(ManagedProjectRepository.ArtifactBinding binding, String version, URI uri) {}
 }
