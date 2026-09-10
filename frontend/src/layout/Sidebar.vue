@@ -37,8 +37,8 @@ function active(path){
       <section v-for="group in groups" :key="group.label" class="nav-group">
         <div class="nav-label">{{group.label}}</div>
         <button v-for="item in group.items" :key="item.path" type="button" class="nav-item" :class="{active:active(item.path)}" @click="emit('navigate',item.path)">
-          <span class="nav-icon"><component :is="item.icon" :size="17" /></span>
-          <span class="nav-copy"><strong>{{item.label}}</strong><small>{{item.description}}</small></span>
+          <div class="nav-icon"><component :is="item.icon" :size="17" /></div>
+          <div class="nav-copy"><strong>{{item.label}}</strong><small>{{item.description}}</small></div>
         </button>
       </section>
     </nav>
