@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { Box, Boxes, RefreshCw, Search } from 'lucide-vue-next'
+import { Box, Boxes, CheckCircle2, ChevronRight, PackageSearch, RefreshCw, Search } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import { getYunxiaoStatus, listYunxiaoArtifacts, listYunxiaoRepositories } from '../api'
 
@@ -46,11 +46,13 @@ async function load(){
     if(selectedRepo.value){
       selectedRepo.value=repos.find(r=>String(r.repoId)===String(selectedRepo.value.repoId))||null
       if(selectedRepo.value)await openRepo(selectedRepo.value)
+    }else if(repos.length===1){
+      await openRepo(repos[0])
     }
   }catch(e){error.value=err(e)}finally{loading.value=false}
 }
 async function openRepo(repo){
-  selectedRepo.value=repo;artifacts.value=[];error.value=''
+  selectedRepo.value=repo;artifacts.value=[];keyword.value='';error.value=''
   try{artifacts.value=await listYunxiaoArtifacts(repo.repoId,{repoType:repo.repoType||'GENERIC',page:1,perPage:30})}
   catch(e){error.value=err(e)}
 }
@@ -76,12 +78,8 @@ function deployArtifact(a){
   }
 
   let draft
-  if(target?.mode==='create'){
-    draft=readJson(DRAFT_KEY,{artifacts:[]})
-  }else{
-    // 从制品仓库直接点“部署”代表开始一个全新的项目，不继承上一次新建草稿。
-    draft={artifacts:[]}
-  }
+  if(target?.mode==='create')draft=readJson(DRAFT_KEY,{artifacts:[]})
+  else draft={artifacts:[]}
   draft.artifacts=appendArtifact(draft.artifacts,selected)
   sessionStorage.setItem(DRAFT_KEY,JSON.stringify(draft))
   sessionStorage.removeItem(PICK_TARGET_KEY)
@@ -92,53 +90,66 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="page-stack restructure-page">
-    <PageHeader title="制品仓库" description="查看云效 Packages 中已经构建完成的制品。制品可以带入新建项目，也可以绑定到已有项目。">
+  <div class="page-stack restructure-page artifacts-page">
+    <PageHeader title="制品仓库" description="浏览云效 Packages 中已构建完成的 GENERIC 制品，并将制品持续绑定到新项目或已有项目。">
       <template #actions>
-        <button class="primary-button" :disabled="loading" @click="load"><RefreshCw :size="14" />{{loading?'读取中…':'刷新仓库'}}</button>
+        <button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="14" />{{loading?'读取中…':'刷新仓库'}}</button>
       </template>
     </PageHeader>
+
     <div v-if="error" class="error-banner">{{error}}</div>
-    <div v-if="pickTarget" class="success-banner">
-      {{pickTarget.mode==='edit'?`正在为项目 #${pickTarget.projectId} 添加制品`:'正在为新项目选择制品'}}。选择后会返回对应项目页面。
+    <div v-if="pickTarget" class="selection-context">
+      <span class="selection-context-icon"><Box :size="16"/></span>
+      <div><strong>{{pickTarget.mode==='edit'?`为项目 #${pickTarget.projectId} 添加制品`:'为新项目选择制品'}}</strong><small>选择一个制品后自动返回项目配置页，绑定关系在保存项目后持久化。</small></div>
     </div>
 
-    <section v-if="status" class="panel" style="padding:15px 18px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-        <div><strong>云效 Packages</strong><div style="font-size:12px;color:#64748b;margin-top:4px">{{status.domain}} · GENERIC 制品仓库</div></div>
-        <span class="status-text" :class="status.configured?'running':'failed'"><i></i>{{status.configured?'CONNECTED':'NOT CONFIGURED'}}</span>
+    <section class="connection-strip" :class="{offline:status&&!status.configured}">
+      <div class="connection-main">
+        <span class="connection-icon"><PackageSearch :size="17"/></span>
+        <div><strong>Yunxiao Packages</strong><small>{{status?.domain||'openapi-rdc.aliyuncs.com'}} · GENERIC</small></div>
       </div>
+      <div class="connection-meta"><span>{{repositories.length}} 个仓库</span><span v-if="selectedRepo">当前：{{selectedRepo.repoName}}</span></div>
+      <span class="state-badge" :data-state="status?.configured?'running':'failed'"><i></i>{{status?.configured?'已连接':'未配置'}}</span>
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><div><h2><Boxes :size="18" />制品仓库</h2><p>先选择仓库，再从其中选择要绑定到项目的 Artifact。</p></div></div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>仓库</th><th>ID</th><th>类型</th><th>说明</th><th>操作</th></tr></thead><tbody>
-        <tr v-for="repo in repositories" :key="repo.repoId"><td><strong>{{repo.repoName}}</strong></td><td><code>{{repo.repoId}}</code></td><td>{{repo.repoType}}</td><td>{{repo.repoDesc||'-'}}</td><td><button class="soft-button" @click="openRepo(repo)">查看制品</button></td></tr>
-      </tbody></table></div>
-      <div v-if="!repositories.length" class="empty-state">暂无 GENERIC 制品仓库。</div>
-    </section>
+    <section class="panel artifact-browser">
+      <aside class="repository-rail">
+        <div class="repository-rail-head"><div><h2><Boxes :size="17"/>仓库</h2><p>选择一个 GENERIC 仓库</p></div></div>
+        <div class="repository-list">
+          <button v-for="repo in repositories" :key="repo.repoId" type="button" class="repository-item" :class="{active:String(selectedRepo?.repoId||'')===String(repo.repoId)}" @click="openRepo(repo)">
+            <span class="repository-item-icon"><Boxes :size="16"/></span>
+            <span class="repository-item-copy"><strong>{{repo.repoName}}</strong><small>{{repo.repoId}}</small></span>
+            <ChevronRight :size="14"/>
+          </button>
+          <div v-if="!repositories.length" class="rail-empty">{{loading?'正在读取仓库…':'暂无 GENERIC 仓库'}}</div>
+        </div>
+      </aside>
 
-    <section v-if="selectedRepo" class="panel">
-      <div class="toolbar">
-        <div><strong>{{selectedRepo.repoName}}</strong><div style="font-size:12px;color:#64748b;margin-top:3px"><code>{{selectedRepo.repoId}}</code></div></div>
-        <label class="search-box"><Search :size="15" /><input v-model="keyword" placeholder="搜索制品名称" /></label>
-        <button class="soft-button" @click="openRepo(selectedRepo)"><RefreshCw :size="14" />刷新制品</button>
+      <div class="artifact-pane">
+        <template v-if="selectedRepo">
+          <div class="artifact-toolbar">
+            <div class="artifact-toolbar-title"><strong>{{selectedRepo.repoName}}</strong><small>{{selectedRepo.repoDesc||selectedRepo.repoId}}</small></div>
+            <label class="search-box artifact-search"><Search :size="15" /><input v-model="keyword" placeholder="搜索制品名称" /></label>
+            <button class="icon-button" title="刷新当前仓库" @click="openRepo(selectedRepo)"><RefreshCw :size="14" /></button>
+          </div>
+          <div class="artifact-table-wrap">
+            <table class="data-table artifact-table">
+              <thead><tr><th>制品</th><th>最新版本</th><th>更新时间</th><th>版本</th><th class="actions-column">操作</th></tr></thead>
+              <tbody>
+                <tr v-for="a in filtered" :key="a.id||a.module">
+                  <td><div class="artifact-name-cell"><span class="artifact-file-icon"><PackageSearch :size="16"/></span><div><strong>{{a.module}}</strong><small>{{a.organization||selectedRepo.repoName}}</small></div></div></td>
+                  <td><code class="version-code">{{a.versions?.[0]?.version||'-'}}</code></td>
+                  <td>{{time(a.latestUpdate)}}</td>
+                  <td><span class="version-count"><CheckCircle2 :size="13"/>{{a.versions?.length||0}} 个</span></td>
+                  <td class="actions-column"><button class="primary-button" @click="deployArtifact(a)"><Box :size="14" />{{pickTarget?.mode==='edit'?'绑定':'用于部署'}}</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="!filtered.length" class="empty-state">{{loading?'正在读取制品…':'该仓库暂无匹配制品。'}}</div>
+          </div>
+        </template>
+        <div v-else class="artifact-placeholder"><span class="artifact-placeholder-icon"><Boxes :size="22"/></span><strong>选择左侧仓库</strong><p>选择仓库后，这里会显示其中可用于项目部署的制品和版本。</p></div>
       </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>制品</th><th>最新版本</th><th>更新时间</th><th>版本数</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-for="a in filtered" :key="a.id||a.module">
-              <td><strong>{{a.module}}</strong><small class="cell-note">{{a.organization||'-'}}</small></td>
-              <td><code>{{a.versions?.[0]?.version||'-'}}</code></td>
-              <td>{{time(a.latestUpdate)}}</td>
-              <td>{{a.versions?.length||0}}</td>
-              <td><button class="primary-button" @click="deployArtifact(a)"><Box :size="14" />{{pickTarget?.mode==='edit'?'绑定到项目':'部署'}}</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-if="!filtered.length" class="empty-state">该仓库暂无匹配制品。</div>
     </section>
   </div>
 </template>
