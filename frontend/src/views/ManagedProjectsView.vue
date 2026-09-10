@@ -1,11 +1,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { Boxes, CheckCircle2, Pencil, Play, Plus, RefreshCw, RotateCcw, Settings2, Square, Trash2 } from 'lucide-vue-next'
+import { MoreHorizontal, Pencil, Play, Plus, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import {deleteManagedProject,listManagedProjects,restartManagedProject,startManagedProject,stopManagedProject} from '../api'
 
 const emit=defineEmits(['navigate'])
-const projects=ref([]),loading=ref(false),error=ref(''),info=ref('')
+const projects=ref([]),loading=ref(false),error=ref(''),info=ref(''),activeFilter=ref('all')
 function err(e){return e.response?.data?.message||e.message||'操作失败'}
 function startConfigured(project){return Boolean(project.startCommand)&&project.startCommand!=='__FDP_START_COMMAND_NOT_CONFIGURED__'}
 function normalizedStatus(project){return String(project.deploymentStatus||'CREATED').toUpperCase()}
@@ -13,11 +13,17 @@ const stats=computed(()=>({
   total:projects.value.length,
   deployed:projects.value.filter(p=>Boolean(p.deployedVersionSummary)).length,
   running:projects.value.filter(p=>normalizedStatus(p)==='RUNNING').length,
-  pending:projects.value.filter(p=>!startConfigured(p)).length
+  pending:projects.value.filter(p=>!startConfigured(p)||['FAILED','ERROR'].includes(normalizedStatus(p))).length
 }))
+const filteredProjects=computed(()=>{
+  if(activeFilter.value==='deployed')return projects.value.filter(p=>Boolean(p.deployedVersionSummary))
+  if(activeFilter.value==='running')return projects.value.filter(p=>normalizedStatus(p)==='RUNNING')
+  if(activeFilter.value==='pending')return projects.value.filter(p=>!startConfigured(p)||['FAILED','ERROR'].includes(normalizedStatus(p)))
+  return projects.value
+})
 function statusLabel(project){
   const status=normalizedStatus(project)
-  return ({CREATED:'待配置',DEPLOYED:'已部署',RUNNING:'运行中',STOPPED:'已停止',FAILED:'失败',ERROR:'异常'})[status]||status
+  return ({CREATED:'待配置',DEPLOYED:'已下载',RUNNING:'运行中',STOPPED:'已停止',FAILED:'失败',ERROR:'异常'})[status]||status
 }
 function statusTone(project){
   const status=normalizedStatus(project)
@@ -52,76 +58,65 @@ onMounted(()=>{
 </script>
 
 <template>
-<div class="page-stack restructure-page managed-projects-page">
-  <PageHeader title="项目部署" description="管理 Packages 制品、运行配置与项目生命周期。制品下载并解压到 current/ 后，再按实际目录完成启动配置。">
+<div class="page-stack restructure-page managed-projects-page plane-page">
+  <PageHeader title="项目部署" description="从制品选择到运行配置，集中管理当前交付项目。">
     <template #actions>
-      <button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="14"/>刷新</button>
-      <button class="primary-button" @click="newProject"><Plus :size="14"/>新增项目</button>
+      <button class="soft-button" :disabled="loading" @click="load"><RefreshCw :size="13"/>刷新</button>
+      <button class="primary-button" @click="newProject"><Plus :size="13"/>新增项目</button>
     </template>
   </PageHeader>
 
   <div v-if="error" class="error-banner">{{error}}</div>
   <div v-if="info" class="success-banner">{{info}}</div>
 
-  <section class="console-summary">
-    <article class="summary-item">
-      <span class="summary-icon"><Boxes :size="17"/></span>
-      <div><small>项目总数</small><strong>{{stats.total}}</strong></div>
-    </article>
-    <article class="summary-item">
-      <span class="summary-icon"><CheckCircle2 :size="17"/></span>
-      <div><small>已下载制品</small><strong>{{stats.deployed}}</strong></div>
-    </article>
-    <article class="summary-item">
-      <span class="summary-icon success"><Play :size="16"/></span>
-      <div><small>运行中</small><strong>{{stats.running}}</strong></div>
-    </article>
-    <article class="summary-item">
-      <span class="summary-icon warning"><Settings2 :size="17"/></span>
-      <div><small>待配置启动</small><strong>{{stats.pending}}</strong></div>
-    </article>
-  </section>
+  <div class="plane-stat-row" aria-label="项目筛选">
+    <button class="plane-stat-filter" :class="{active:activeFilter==='all'}" @click="activeFilter='all'"><span>全部项目</span><strong>{{stats.total}}</strong></button>
+    <button class="plane-stat-filter" :class="{active:activeFilter==='deployed'}" @click="activeFilter='deployed'"><span>已下载</span><strong>{{stats.deployed}}</strong></button>
+    <button class="plane-stat-filter" :class="{active:activeFilter==='running'}" @click="activeFilter='running'"><span>运行中</span><strong>{{stats.running}}</strong></button>
+    <button class="plane-stat-filter" :class="{active:activeFilter==='pending'}" @click="activeFilter='pending'"><span>待处理</span><strong>{{stats.pending}}</strong></button>
+  </div>
 
-  <section class="panel managed-project-panel">
-    <div class="panel-head compact-panel-head">
-      <div><h2>Managed Projects</h2><p>一个项目对应一个独立 Container；删除项目不会删除业务 Database。</p></div>
-      <span class="table-meta">{{projects.length}} 个项目</span>
+  <section class="panel managed-project-panel plane-data-panel">
+    <div class="plane-panel-toolbar">
+      <div class="plane-panel-tabs">
+        <strong>项目</strong>
+        <button :class="{active:activeFilter==='all'}" @click="activeFilter='all'">全部</button>
+        <button :class="{active:activeFilter==='running'}" @click="activeFilter='running'">运行中</button>
+        <button :class="{active:activeFilter==='pending'}" @click="activeFilter='pending'">需要处理</button>
+      </div>
+      <span class="plane-panel-meta">显示 {{filteredProjects.length}} / {{projects.length}}</span>
     </div>
     <div class="table-wrap">
-      <table class="data-table managed-projects-table">
-        <thead><tr><th>项目</th><th>制品 / 版本</th><th>运行配置</th><th>Database</th><th>状态</th><th class="actions-column">操作</th></tr></thead>
+      <table class="data-table managed-projects-table plane-table">
+        <thead><tr><th>项目</th><th>Database</th><th>Runtime</th><th>制品</th><th>版本</th><th>状态</th><th class="actions-column">操作</th></tr></thead>
         <tbody>
-          <tr v-for="p in projects" :key="p.id">
+          <tr v-for="p in filteredProjects" :key="p.id">
             <td class="project-primary-cell">
               <button class="project-title-button" @click="emit('navigate',`/containers/${p.id}/edit`)">{{p.projectName}}</button>
-              <small class="cell-note"><code>{{p.containerName}}</code></small>
-            </td>
-            <td>
-              <div class="artifact-summary"><strong>{{p.artifacts?.length||0}} 个制品</strong><span>{{(p.artifacts||[]).map(a=>a.artifactName).join(' · ')||'尚未绑定制品'}}</span></div>
-              <small class="cell-note">部署版本：{{p.deployedVersionSummary||'未下载'}}</small>
-            </td>
-            <td>
-              <code>{{p.runtimeImage}}</code>
-              <small class="cell-note">工作目录 {{p.workDirectory||'.'}}<template v-if="!startConfigured(p)"> · <b class="pending-text">待填写启动命令</b></template></small>
+              <small class="cell-note">#{{String(p.id).padStart(2,'0')}} · current/</small>
             </td>
             <td><code>{{p.databaseName}}</code></td>
-            <td><span class="state-badge" :data-state="statusTone(p)"><i></i>{{statusLabel(p)}}</span><small v-if="p.pendingRestart" class="cell-note pending-text">配置变更待重启</small></td>
+            <td><span>{{p.runtimeImage}}</span><small class="cell-note">{{p.workDirectory||'.'}}</small></td>
+            <td><span>{{p.artifacts?.length||0}} 个</span><small class="cell-note artifact-inline">{{(p.artifacts||[]).map(a=>a.artifactName).join(' · ')||'未绑定'}}</small></td>
+            <td><code>{{p.deployedVersionSummary||'未部署'}}</code><small v-if="p.runningVersionSummary" class="cell-note">运行 {{p.runningVersionSummary}}</small></td>
+            <td><span class="state-badge" :data-state="statusTone(p)"><i></i>{{statusLabel(p)}}</span><small v-if="p.pendingRestart" class="cell-note pending-text">配置待重启</small></td>
             <td class="actions-column">
-              <div class="project-actions">
-                <button class="soft-button action-edit" @click="emit('navigate',`/containers/${p.id}/edit`)"><Pencil :size="13"/>编辑</button>
-                <div class="runtime-actions-group">
-                  <button class="icon-button" :disabled="!startConfigured(p)" :title="startConfigured(p)?'启动项目':'请先配置启动命令'" @click="action(p.id,'start')"><Play :size="14"/></button>
-                  <button class="icon-button" title="停止项目" @click="action(p.id,'stop')"><Square :size="13"/></button>
-                  <button class="icon-button" :disabled="!startConfigured(p)" title="重启项目" @click="action(p.id,'restart')"><RotateCcw :size="14"/></button>
-                </div>
-                <button class="icon-button danger" title="删除项目" @click="removeProject(p)"><Trash2 :size="14"/></button>
+              <div class="project-actions plane-project-actions">
+                <button class="soft-button plane-edit-button" @click="emit('navigate',`/containers/${p.id}/edit`)"><Pencil :size="12"/>编辑</button>
+                <button class="plane-icon-action" :disabled="!startConfigured(p)" :title="startConfigured(p)?'启动项目':'请先配置启动命令'" @click="action(p.id,'start')"><Play :size="14"/></button>
+                <button class="plane-icon-action" title="停止项目" @click="action(p.id,'stop')"><Square :size="12"/></button>
+                <button class="plane-icon-action" :disabled="!startConfigured(p)" title="重启项目" @click="action(p.id,'restart')"><RotateCcw :size="13"/></button>
+                <details class="plane-more-menu">
+                  <summary title="更多操作"><MoreHorizontal :size="15"/></summary>
+                  <div class="plane-menu-popover"><button class="danger-link" @click.prevent="removeProject(p)"><Trash2 :size="12"/>删除项目</button></div>
+                </details>
               </div>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
-    <div v-if="!projects.length" class="empty-state">{{loading?'正在读取项目…':'暂无项目。点击右上角“新增项目”开始绑定 Packages 制品。'}}</div>
+    <div v-if="!filteredProjects.length" class="empty-state">{{loading?'正在读取项目…':'当前筛选下暂无项目。'}}</div>
   </section>
 </div>
 </template>
