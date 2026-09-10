@@ -7,7 +7,7 @@ defineProps({
 
 <template>
   <header class="page-heading">
-    <div>
+    <div class="page-heading-copy">
       <h1>{{ title }}</h1>
       <p v-if="description">{{ description }}</p>
     </div>
