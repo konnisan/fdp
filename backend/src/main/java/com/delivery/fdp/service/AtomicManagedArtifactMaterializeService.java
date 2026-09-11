@@ -63,7 +63,7 @@ public class AtomicManagedArtifactMaterializeService {
         Path root = projectRoot(projectId);
         Path current = root.resolve("current");
         Path backup = root.resolve(".current-transaction-backup-" + System.nanoTime());
-        CurrentSnapshot snapshot = detachCurrent(current, backup);
+        CurrentSnapshot snapshot = snapshotCurrent(current, backup);
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -84,16 +84,32 @@ public class AtomicManagedArtifactMaterializeService {
         }
     }
 
-    private CurrentSnapshot detachCurrent(Path current, Path backup) {
+    private CurrentSnapshot snapshotCurrent(Path current, Path backup) {
         try {
             Files.createDirectories(current.getParent());
             boolean hadPreviousCurrent = Files.exists(current);
-            if (hadPreviousCurrent) {
-                Files.move(current, backup, StandardCopyOption.REPLACE_EXISTING);
-            }
+            if (hadPreviousCurrent) copyRecursively(current, backup);
             return new CurrentSnapshot(current, backup, hadPreviousCurrent);
         } catch (IOException error) {
-            throw new IllegalStateException("暂存旧 current 目录失败: " + message(error), error);
+            try { deleteRecursively(backup); } catch (Exception ignored) {}
+            throw new IllegalStateException("备份旧 current 目录失败: " + message(error), error);
+        }
+    }
+
+    private void copyRecursively(Path source, Path target) throws IOException {
+        try (var stream = Files.walk(source)) {
+            for (Path item : stream.toList()) {
+                Path relative = source.relativize(item);
+                Path destination = target.resolve(relative);
+                if (Files.isDirectory(item)) {
+                    Files.createDirectories(destination);
+                } else {
+                    Files.createDirectories(destination.getParent());
+                    Files.copy(item, destination,
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.COPY_ATTRIBUTES);
+                }
+            }
         }
     }
 
