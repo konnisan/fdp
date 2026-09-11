@@ -1,5 +1,6 @@
 package com.delivery.fdp.controller;
 
+import com.delivery.fdp.service.AtomicManagedArtifactMaterializeService;
 import com.delivery.fdp.service.ManagedArtifactMaterializeService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,9 +13,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/managed-projects")
 public class ManagedArtifactMaterializeController {
-    private final ManagedArtifactMaterializeService service;
+    private final AtomicManagedArtifactMaterializeService service;
 
-    public ManagedArtifactMaterializeController(ManagedArtifactMaterializeService service) {
+    public ManagedArtifactMaterializeController(AtomicManagedArtifactMaterializeService service) {
         this.service = service;
     }
 
