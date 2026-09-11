@@ -51,17 +51,15 @@ export const updateSourceCredential=(id,data)=>http.put(`/source-credentials/${i
 export const deleteSourceCredential=id=>http.delete(`/source-credentials/${id}`)
 export const testSourceCredential=(id,data)=>http.post(`/source-credentials/${id}/test`,data).then(r=>r.data)
 
-// V10 managed-project runtime.
+// Managed-project runtime.
 export const listManagedProjects=()=>http.get('/managed-projects').then(r=>r.data)
 export const getManagedProject=id=>http.get(`/managed-projects/${id}`).then(r=>r.data)
 export const createManagedProject=data=>http.post('/managed-projects',data).then(r=>r.data)
-export const updateManagedProject=(id,data)=>http.put(`/managed-projects/${id}`,data).then(r=>r.data)
 export const updateManagedProjectConfiguration=(id,data)=>http.put(`/managed-projects/${id}/configuration`,data).then(r=>r.data)
 export const deleteManagedProject=id=>http.delete(`/managed-projects/${id}`)
 export const getManagedRuntimeImages=()=>http.get('/managed-projects/runtime-images').then(r=>r.data)
 export const listManagedArtifacts=id=>http.get(`/managed-projects/${id}/artifacts`).then(r=>r.data)
 export const listManagedArtifactVersions=(id,artifactId)=>http.get(`/managed-projects/${id}/artifacts/${artifactId}/versions`).then(r=>r.data)
-export const deployManagedProject=(id,data)=>http.post(`/managed-projects/${id}/deploy`,data).then(r=>r.data)
 export const getManagedRuntime=id=>http.get(`/managed-projects/${id}/runtime`).then(r=>r.data)
 export const getManagedLogs=id=>http.get(`/managed-projects/${id}/logs`).then(r=>r.data.content)
 export const getManagedDirectory=id=>http.get(`/managed-projects/${id}/directory`).then(r=>r.data)
