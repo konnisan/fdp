@@ -23,7 +23,7 @@ function submit(){
 <template>
   <header class="topbar plane-topbar">
     <form class="plane-global-search" @submit.prevent="submit">
-      <Search :size="16" />
+      <Search :size="18" />
       <input v-model="query" aria-label="页面搜索" placeholder="搜索页面" />
     </form>
   </header>
