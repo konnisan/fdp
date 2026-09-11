@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { GitBranch, PackageSearch, Play, RefreshCw, Search } from 'lucide-vue-next'
+import { ChevronDown, ChevronUp, GitBranch, PackageSearch, Play, RefreshCw, Search } from 'lucide-vue-next'
 import PageHeader from '../components/PageHeader.vue'
 import { getYunxiaoStatus, listYunxiaoPipelineRuns, listYunxiaoPipelines, runYunxiaoPipeline } from '../api'
 
@@ -11,6 +11,7 @@ const selected=ref(null)
 const runs=ref([])
 const keyword=ref('')
 const loading=ref(false)
+const loadingRuns=ref(false)
 const running=ref('')
 const error=ref('')
 const info=ref('')
@@ -22,6 +23,7 @@ const filtered=computed(()=>{
 function value(obj,...keys){for(const k of keys){if(obj&&obj[k]!=null)return obj[k]}return '-'}
 function time(v){if(!v)return '-';const n=Number(v);return Number.isFinite(n)?new Date(n).toLocaleString():String(v)}
 function err(e){return e.response?.data?.message||e.message||'操作失败'}
+function isExpanded(p){return String(selected.value?.pipelineId||'')===String(p.pipelineId)}
 function runTone(run){
   const state=String(value(run,'status')).toUpperCase()
   if(state==='SUCCESS')return 'deployed'
@@ -41,7 +43,20 @@ async function load(){
     }
   }catch(e){error.value=err(e)}finally{loading.value=false}
 }
-async function loadRuns(p){selected.value=p;runs.value=[];error.value='';try{runs.value=await listYunxiaoPipelineRuns(p.pipelineId,{page:1,perPage:20})}catch(e){error.value=err(e)}}
+async function loadRuns(p){
+  selected.value=p;runs.value=[];error.value='';loadingRuns.value=true
+  try{runs.value=await listYunxiaoPipelineRuns(p.pipelineId,{page:1,perPage:20})}
+  catch(e){error.value=err(e)}
+  finally{loadingRuns.value=false}
+}
+async function toggleRuns(p){
+  if(isExpanded(p)){
+    selected.value=null
+    runs.value=[]
+    return
+  }
+  await loadRuns(p)
+}
 async function run(p){
   if(!confirm(`运行流水线“${p.pipelineName}”吗？`))return
   running.value=String(p.pipelineId);error.value='';info.value=''
@@ -81,24 +96,51 @@ onMounted(load)
         <table class="data-table pipeline-table">
           <thead><tr><th>流水线</th><th>Pipeline ID</th><th>创建时间</th><th class="actions-column">操作</th></tr></thead>
           <tbody>
-            <tr v-for="p in filtered" :key="p.pipelineId" :class="{selected:String(selected?.pipelineId||'')===String(p.pipelineId)}">
-              <td><div class="artifact-name-cell"><span class="artifact-file-icon"><GitBranch :size="16" /></span><strong>{{p.pipelineName}}</strong></div></td>
-              <td><code>{{p.pipelineId}}</code></td>
-              <td>{{time(p.createTime)}}</td>
-              <td class="actions-column"><div class="project-actions"><button class="soft-button" @click="loadRuns(p)">运行记录</button><button class="primary-button" :disabled="running!==''" @click="run(p)"><Play :size="14" />{{running===String(p.pipelineId)?'触发中…':'运行'}}</button></div></td>
-            </tr>
+            <template v-for="p in filtered" :key="p.pipelineId">
+              <tr :class="{selected:isExpanded(p)}">
+                <td><div class="artifact-name-cell"><span class="artifact-file-icon"><GitBranch :size="16" /></span><strong>{{p.pipelineName}}</strong></div></td>
+                <td><code>{{p.pipelineId}}</code></td>
+                <td>{{time(p.createTime)}}</td>
+                <td class="actions-column">
+                  <div class="project-actions">
+                    <button class="soft-button pipeline-runs-toggle" @click="toggleRuns(p)">
+                      {{isExpanded(p)?'收起记录':'运行记录'}}
+                      <ChevronUp v-if="isExpanded(p)" :size="14" />
+                      <ChevronDown v-else :size="14" />
+                    </button>
+                    <button class="primary-button" :disabled="running!==''" @click="run(p)"><Play :size="14" />{{running===String(p.pipelineId)?'触发中…':'运行'}}</button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="isExpanded(p)" class="pipeline-drawer-row">
+                <td colspan="4">
+                  <div class="pipeline-run-drawer">
+                    <div class="pipeline-run-drawer-head">
+                      <strong>运行记录</strong>
+                      <button class="soft-button" :disabled="loadingRuns" @click="loadRuns(p)"><RefreshCw :size="14" />{{loadingRuns?'刷新中…':'刷新'}}</button>
+                    </div>
+                    <div v-if="loadingRuns" class="pipeline-drawer-empty">正在加载…</div>
+                    <table v-else-if="runs.length" class="data-table pipeline-runs-table">
+                      <thead><tr><th>Run</th><th>状态</th><th>触发方式</th><th>开始时间</th><th>结束时间</th></tr></thead>
+                      <tbody>
+                        <tr v-for="r in runs" :key="value(r,'pipelineRunId','id')">
+                          <td><code>#{{value(r,'pipelineRunId','id')}}</code></td>
+                          <td><span class="state-badge" :data-state="runTone(r)"><i></i>{{value(r,'status')}}</span></td>
+                          <td>{{value(r,'triggerMode')}}</td>
+                          <td>{{time(value(r,'startTime','createTime'))}}</td>
+                          <td>{{time(value(r,'endTime','updateTime'))}}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div v-else class="pipeline-drawer-empty">暂无运行记录</div>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
       <div v-if="!filtered.length" class="empty-state">{{loading?'正在加载…':'暂无流水线'}}</div>
-    </section>
-
-    <section v-if="selected" class="panel pipeline-runs-panel">
-      <div class="panel-head compact-panel-head"><h2>{{selected.pipelineName}} · 最近运行</h2><button class="soft-button" @click="loadRuns(selected)"><RefreshCw :size="14" />刷新</button></div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Run</th><th>状态</th><th>触发方式</th><th>开始时间</th><th>结束时间</th></tr></thead><tbody>
-        <tr v-for="r in runs" :key="value(r,'pipelineRunId','id')"><td><code>#{{value(r,'pipelineRunId','id')}}</code></td><td><span class="state-badge" :data-state="runTone(r)"><i></i>{{value(r,'status')}}</span></td><td>{{value(r,'triggerMode')}}</td><td>{{time(value(r,'startTime','createTime'))}}</td><td>{{time(value(r,'endTime','updateTime'))}}</td></tr>
-      </tbody></table></div>
-      <div v-if="!runs.length" class="empty-state">暂无运行记录</div>
     </section>
   </div>
 </template>
