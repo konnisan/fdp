@@ -30,12 +30,20 @@ body{font-size:14px;color:#1f2937}
 .page-heading p,
 .restructure-page .panel-head p,
 .restructure-page label>small,
+.restructure-page .project-create-form .cell-note,
 .selection-context small,
 .connection-main small,
 .artifact-toolbar-title small,
 .repository-rail-head p,
 .artifact-placeholder p,
-.restructure-page .inline-note{display:none!important}
+.restructure-page .inline-note,
+.restructure-page .runtime-stat small,
+.restructure-page .runtime-primary>div>span,
+.restructure-page .integration-boundary b,
+.restructure-page .modal-card>header p,
+.restructure-page .profile-summary-card p,
+.restructure-page .profile-create-card small,
+.restructure-page .plan-strip small{display:none!important}
 
 /* Summary filters */
 .plane-stat-filter{height:36px;padding:0 13px;font-size:12px;color:#475569}
@@ -76,6 +84,19 @@ body{font-size:14px;color:#1f2937}
 .artifact-file-icon{width:30px;height:30px}
 .artifact-name-cell{gap:9px}
 .artifact-placeholder{font-size:13px;color:#475569}
+
+/* Artifact version download */
+.artifact-download-list{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.artifact-download-row{border:1px solid #e5e7eb;border-radius:8px;padding:14px;display:grid;grid-template-columns:minmax(220px,1.4fr) minmax(200px,1fr) minmax(180px,1fr);gap:14px;align-items:end}
+.artifact-download-row>strong{align-self:center;font-size:13px;color:#1f2937}
+.artifact-download-target{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#475569}
+.artifact-download-target code{min-height:38px;display:flex;align-items:center;padding:0 10px;background:#f8fafc;border:1px solid #d8dee8;border-radius:6px;color:#334155}
+.artifact-download-actions{display:flex;justify-content:flex-end;padding-top:4px}
+
+/* Static preview */
+.static-source-bar{min-height:58px;padding:0 16px;display:flex;align-items:center;gap:16px}
+.static-source-bar>strong{font-size:13px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.static-source-bar .status-text{margin-left:auto}
 
 /* Forms and editor pages */
 .form-grid label,.restructure-form-grid label{font-size:12px;color:#475569}
