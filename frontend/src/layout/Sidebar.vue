@@ -37,7 +37,7 @@ function active(path){
       <section v-for="group in groups" :key="group.label" class="plane-nav-group">
         <div class="plane-nav-group-title">{{group.label}}</div>
         <button v-for="item in group.items" :key="item.path" type="button" class="nav-item plane-nav-item" :class="{active:active(item.path)}" @click="emit('navigate',item.path)">
-          <span class="nav-icon plane-nav-icon"><component :is="item.icon" :size="17" /></span>
+          <span class="nav-icon plane-nav-icon"><component :is="item.icon" :size="19" /></span>
           <span class="plane-nav-label">{{item.label}}</span>
         </button>
       </section>
